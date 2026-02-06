@@ -151,6 +151,7 @@ Perfect for:
 ## 📸 Reference Images (Heads Up!)
 
 Not all models can accept reference images (avatars / previous art).
+
 If you want consistency — choose a model that supports it.
 
 Pawtrait shows support indicators so you’ll always know!
@@ -184,6 +185,7 @@ Play nice. Be kind. 🐾💗
 ## ❤ Author
 
 Made by ThatGirl / Puppy
+
 For storytellers, dreamers, and soft girls with messy imaginations 🐾✨
 
 “Made with paws and spite.”
