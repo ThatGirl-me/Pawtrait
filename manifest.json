@@ -1,0 +1,14 @@
+{
+    "name": "pawtrait",
+    "display_name": "Pawtrait 🐾",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "ThatGirl",
+    "description": "Multi-provider image generation with avatar references and character context. Supports NanoGPT, OpenRouter, LinkAPI, and Pollinations.",
+    "version": "2.0.0",
+    "homePage": "https://github.com/ThatGirl-me/Pawtrait",
+    "manifest_version": 3
+}

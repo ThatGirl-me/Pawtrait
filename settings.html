@@ -1,0 +1,206 @@
+<div class="nig_settings">
+<div class="inline-drawer">
+<div class="inline-drawer-toggle inline-drawer-header">
+<b>Pawtrait 🐾</b>
+<div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+</div>
+<div class="inline-drawer-content">
+
+<div class="nig_tabs">
+<div class="nig_tab active" data-tab="connection"><i class="fa-solid fa-plug"></i> Connection</div>
+<div class="nig_tab" data-tab="characters"><i class="fa-solid fa-users"></i> Characters</div>
+<div class="nig_tab" data-tab="generation"><i class="fa-solid fa-sliders"></i> Generation</div>
+<div class="nig_tab" data-tab="gallery"><i class="fa-solid fa-images"></i> Gallery</div>
+</div>
+
+<div class="nig_tab_content active" data-tab="connection">
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-key"></i> API Credentials</div>
+<div class="nig_field">
+<label for="nig_provider">Provider</label>
+<select id="nig_provider" class="text_pole">
+<option value="nano-gpt">NanoGPT</option>
+<option value="openrouter">OpenRouter</option>
+<option value="linkapi">LinkAPI.ai</option>
+<option value="pollinations">Pollinations.ai</option>
+<option value="custom">Custom</option>
+</select>
+<small class="nig_hint">Choose an API provider. Use "Custom" to supply your own endpoint.</small>
+</div>
+<div class="nig_field" id="nig_endpoint_field" style="display:none;">
+<label for="nig_api_endpoint">Endpoint URL</label>
+<input type="text" id="nig_api_endpoint" class="text_pole" placeholder="https://your-api.com/v1/images/generations" />
+</div>
+<div class="nig_field">
+<label for="nig_api_key">API Key</label>
+<div class="nig_input_group">
+<input type="password" id="nig_api_key" class="text_pole" placeholder="Enter your API key" />
+<div id="nig_toggle_key" class="nig_input_btn" title="Show/Hide"><i class="fa-solid fa-eye"></i></div>
+</div>
+</div>
+</div>
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-cube"></i> Model Selection</div>
+<div class="nig_field">
+<label for="nig_model">Model</label>
+<select id="nig_model" class="text_pole"><option value="">-- Click Fetch Models --</option></select>
+<div id="nig_model_info" class="nig_model_badge"></div>
+</div>
+<div class="nig_field">
+<div id="nig_fetch_models_btn" class="menu_button menu_button_icon nig_full_btn"><i class="fa-solid fa-rotate"></i><span>Fetch Models</span></div>
+</div>
+</div>
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-circle-info"></i> Connection Status</div>
+<div id="nig_connection_status" class="nig_status"><span class="nig_status_dot"></span><span class="nig_status_text">Not tested</span></div>
+<div id="nig_test_connection_btn" class="menu_button menu_button_icon nig_full_btn"><i class="fa-solid fa-plug-circle-check"></i><span>Test Connection</span></div>
+</div>
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-robot"></i> AI Summarizer</div>
+<small class="nig_hint" style="margin-bottom:8px;display:block;">Converts roleplay text into image prompts. Does NOT modify your saved descriptions.</small>
+<label class="nig_checkbox">
+<input type="checkbox" id="nig_auto_summarize" /><span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Auto-Summarize Prompts<small>Use AI to create image prompts</small></span>
+</label>
+<div class="nig_field">
+<label for="nig_summarizer_model">Summarizer Model</label>
+<div class="nig_input_group">
+<select id="nig_summarizer_model" class="text_pole">
+<option value="deepseek-chat">DeepSeek Chat</option>
+<option value="gpt-4o-mini">GPT-4o Mini</option>
+<option value="gpt-4.1-nano">GPT-4.1 Nano</option>
+<option value="claude-3-haiku">Claude 3 Haiku</option>
+<option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+</select>
+<div id="nig_fetch_summarizer_models_btn" class="nig_input_btn" title="Fetch Summarizer Models"><i class="fa-solid fa-rotate"></i></div>
+</div>
+<small class="nig_hint">Fetch available chat/summarizer models from the selected provider.</small>
+</div>
+</div>
+</div>
+
+<div class="nig_tab_content" data-tab="characters">
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-user"></i> Character Visual Descriptions</div>
+<small class="nig_hint" style="margin-bottom:10px;display:block;">Select a character to edit their visual description.</small>
+<div class="nig_field">
+<label for="nig_char_select">Select Character</label>
+<div class="nig_input_group">
+<select id="nig_char_select" class="text_pole"><option value="">-- Select a character --</option></select>
+<div id="nig_refresh_chars_btn" class="nig_input_btn" title="Refresh"><i class="fa-solid fa-rotate"></i></div>
+</div>
+</div>
+<div class="nig_field">
+<label for="nig_char_description">Visual Description for <span id="nig_char_name_label">selected character</span></label>
+<textarea id="nig_char_description" class="text_pole textarea_compact" rows="5" placeholder="Select a character..."></textarea>
+<small class="nig_hint">Auto-loaded from character card. Edit and save to override.</small>
+</div>
+<div class="nig_button_row" style="margin-top:8px;">
+<button type="button" id="nig_save_char_desc_btn" class="menu_button menu_button_icon"><i class="fa-solid fa-floppy-disk"></i><span>Save Custom Description</span></button>
+<button type="button" id="nig_reset_char_desc_btn" class="menu_button menu_button_icon"><i class="fa-solid fa-rotate-left"></i><span>Reset to Card</span></button>
+</div>
+<div id="nig_char_saved_list" class="nig_saved_list"></div>
+</div>
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-user-pen"></i> User/Persona Visual Descriptions</div>
+<small class="nig_hint" style="margin-bottom:10px;display:block;">Select a persona to edit their visual description.</small>
+<div class="nig_field">
+<label for="nig_persona_select">Select Persona</label>
+<div class="nig_input_group">
+<select id="nig_persona_select" class="text_pole"><option value="">-- Select a persona --</option></select>
+<div id="nig_refresh_personas_btn" class="nig_input_btn" title="Refresh"><i class="fa-solid fa-rotate"></i></div>
+</div>
+</div>
+<div class="nig_field">
+<label for="nig_persona_description">Visual Description for <span id="nig_persona_name_label">selected persona</span></label>
+<textarea id="nig_persona_description" class="text_pole textarea_compact" rows="5" placeholder="Select a persona..."></textarea>
+<small class="nig_hint">Auto-loaded from persona. Edit and save to override.</small>
+</div>
+<div class="nig_button_row" style="margin-top:8px;">
+<button type="button" id="nig_save_persona_desc_btn" class="menu_button menu_button_icon"><i class="fa-solid fa-floppy-disk"></i><span>Save Custom Description</span></button>
+<button type="button" id="nig_reset_persona_desc_btn" class="menu_button menu_button_icon"><i class="fa-solid fa-rotate-left"></i><span>Reset to Persona</span></button>
+</div>
+<div id="nig_persona_saved_list" class="nig_saved_list"></div>
+</div>
+</div>
+
+<div class="nig_tab_content" data-tab="generation">
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-image"></i> Image Settings</div>
+<div class="nig_field">
+<label for="nig_aspect_ratio">Aspect Ratio</label>
+<select id="nig_aspect_ratio" class="text_pole">
+<option value="1:1">1:1 Square</option>
+<option value="16:9">16:9 Landscape</option>
+<option value="9:16">9:16 Portrait</option>
+<option value="4:3">4:3 Standard</option>
+<option value="3:4">3:4 Portrait</option>
+<option value="3:2">3:2 Photo</option>
+<option value="2:3">2:3 Portrait Photo</option>
+</select>
+</div>
+<div class="nig_field">
+<label for="nig_max_prompt_length">Max Prompt Length</label>
+<input type="number" id="nig_max_prompt_length" class="text_pole" min="100" max="5000" value="1000" />
+</div>
+</div>
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-wand-magic-sparkles"></i> Reference Images</div>
+<label class="nig_checkbox">
+<input type="checkbox" id="nig_use_avatars" /><span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Use Character & User Avatars<small>Requires compatible model</small></span>
+</label>
+<label class="nig_checkbox">
+<input type="checkbox" id="nig_use_previous_image" /><span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Use Previous Image as Reference<small>For style consistency</small></span>
+</label>
+<label class="nig_checkbox">
+<input type="checkbox" id="nig_include_descriptions" /><span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Include Character Descriptions<small>Add appearance info to prompt</small></span>
+</label>
+</div>
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-message"></i> Prompt Settings</div>
+<div class="nig_field">
+<label for="nig_message_depth">Message Context Depth</label>
+<div class="nig_range_container">
+<input type="range" id="nig_message_depth" min="1" max="10" value="1" />
+<span id="nig_message_depth_value" class="nig_range_value">1</span>
+</div>
+</div>
+<div class="nig_field">
+<label for="nig_system_instruction">Style Prefix</label>
+<textarea id="nig_system_instruction" class="text_pole textarea_compact" rows="2" placeholder="e.g. Detailed illustration, anime style"></textarea>
+<div id="nig_reset_instruction" class="menu_button menu_button_icon nig_small_btn"><i class="fa-solid fa-rotate-left"></i> Reset</div>
+</div>
+</div>
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-play"></i> Quick Generate</div>
+<div id="nig_preview_container" class="nig_preview" style="display:none;"><img id="nig_preview_image" /></div>
+<div class="nig_button_row">
+<div id="nig_generate_btn" class="menu_button menu_button_icon"><i class="fa-solid fa-image"></i><span>Generate</span></div>
+<div id="nig_test_prompt_btn" class="menu_button menu_button_icon"><i class="fa-solid fa-eye"></i><span>Preview Prompt</span></div>
+</div>
+<div id="nig_prompt_preview_block" class="nig_field" style="display:none;">
+<label>Prompt Preview</label>
+<textarea id="nig_prompt_preview" class="text_pole textarea_compact" rows="4" readonly></textarea>
+</div>
+</div>
+</div>
+
+<div class="nig_tab_content" data-tab="gallery">
+<div class="nig_section">
+<div class="nig_section_header">
+<div class="nig_section_title"><i class="fa-solid fa-images"></i> Generated Images</div>
+<div id="nig_clear_gallery" class="menu_button menu_button_icon nig_small_btn nig_danger"><i class="fa-solid fa-trash"></i> Clear All</div>
+</div>
+<div id="nig_gallery_container" class="nig_gallery"></div>
+<div id="nig_gallery_empty" class="nig_gallery_empty">
+<i class="fa-solid fa-image"></i><span>No images generated yet</span><small>Generated images will appear here</small>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
