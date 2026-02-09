@@ -3,11 +3,12 @@
  * Multi-provider image generation with avatar references and character context
  * Supports NanoGPT, OpenRouter, LinkAPI.ai, Pollinations.ai, and Custom endpoints
  * Author: ThatGirl-me
- * Version 1.0.2
+ * Version 1.0.3
  */
 
 import {
     saveSettingsDebounced,
+    saveSettings,
     appendMediaToMessage,
     eventSource,
     event_types,
@@ -69,6 +70,28 @@ const defaultSettings = {
     use_summarizer: false,
     auto_summarize: false,
     summarizer_model: 'deepseek-chat-cheaper',
+    summarizer_system_prompt_template: `You are an image prompt generator for AI art.
+
+CHARACTER APPEARANCES (COPY THESE EXACTLY - do not paraphrase or change details):
+{{APPEARANCE_LINES}}
+
+TASK:
+1. First output ALL listed character appearance anchors using the exact details above.
+2. Then write a concise scene description (2-3 sentences) including pose, composition, environment, and lighting.
+
+CRITICAL: Hair colors, gradients, lengths, and other specific details must be copied EXACTLY as written above. Do not reverse gradients or change any visual details.
+CRITICAL: Character appearance accuracy is the highest priority and must override scene details.
+CRITICAL: Do NOT invent or embellish clothing/body details that are not in the appearance anchors.
+CRITICAL: Output exactly ONE bullet per listed character. Do not add extra characters.
+CRITICAL: Keep the output structured and readable using line breaks and bullets.
+CRITICAL: Put one blank line between each character bullet.
+
+Output format:
+Characters:
+{{OUTPUT_FORMAT_LINES}}
+
+Scene: [2-3 descriptive sentences]
+`,
 
     // Character Description Settings
     char_descriptions: {}, // { "character_name": "custom_description" }
@@ -80,6 +103,7 @@ const defaultSettings = {
     image_size: '1K', // 1K | 2K | 4K (for models that support tiers)
     max_prompt_length: 1000,
     use_avatars: false,
+    include_persona: true, // Include user persona description + avatar references when available
     include_descriptions: false,
     use_previous_image: false,
     message_depth: 1,
@@ -502,13 +526,20 @@ async function loadSettings() {
     $('#nig_image_size').val(normalizedImageSize);
     $('#nig_max_prompt_length').val(s.max_prompt_length);
     $('#nig_use_avatars').prop('checked', s.use_avatars);
+    $('#nig_include_persona').prop('checked', s.include_persona !== false);
     $('#nig_include_descriptions').prop('checked', s.include_descriptions);
     $('#nig_use_previous_image').prop('checked', s.use_previous_image);
     $('#nig_message_depth').val(s.message_depth);
     $('#nig_message_depth_value').text(s.message_depth);
     $('#nig_system_instruction').val(s.system_instruction);
     $('#nig_summarizer_model').val(s.summarizer_model);
+    $('#nig_summarizer_system_prompt_template').val(
+        (typeof s.summarizer_system_prompt_template === 'string' && s.summarizer_system_prompt_template.trim().length > 0)
+            ? s.summarizer_system_prompt_template
+            : defaultSettings.summarizer_system_prompt_template
+    );
     $('#nig_auto_summarize').prop('checked', s.auto_summarize);
+    updateSummarizerModelListToggleButton();
     $('#nig_log_autoscroll').prop('checked', s.log_autoscroll !== false);
     $('#nig_log_level_filter').val('all');
     scheduleRuntimeLogRender();
@@ -550,6 +581,174 @@ async function loadSettings() {
 // Cache for fetched models data
 let cachedModels = [];
 let cachedChatModels = []; // Cache for chat/summarizer models
+
+const SUMMARIZER_RECOMMENDED_COUNT = 5;
+let summarizerModelListMode = 'recommended'; // 'recommended' | 'all'
+
+function updateSummarizerModelListToggleButton() {
+    const btn = $('#nig_toggle_summarizer_models_btn');
+    if (!btn.length) return;
+
+    const icon = btn.find('i');
+    if (summarizerModelListMode === 'all') {
+        icon.removeClass('fa-list').addClass('fa-star');
+        btn.attr('title', 'Show Recommended Models');
+    } else {
+        icon.removeClass('fa-star').addClass('fa-list');
+        btn.attr('title', 'Show All Models');
+    }
+}
+
+function getSummarizerModelId(model) {
+    return String(model?.id || model?.name || '').trim();
+}
+
+function getSummarizerModelDisplayName(model) {
+    const id = getSummarizerModelId(model);
+    return String(model?.description || model?.name || model?.id || id).trim() || id;
+}
+
+function getSummarizerModelOutputModalities(model) {
+    const raw = model?.output_modalities ?? model?.architecture?.output_modalities ?? [];
+    return Array.isArray(raw) ? raw : [];
+}
+
+function buildSummarizerCandidates(models) {
+    const list = Array.isArray(models) ? models : [];
+
+    return list.filter(m => {
+        const id = getSummarizerModelId(m).toLowerCase();
+
+        // Prefer models that can output text (Pollinations format).
+        const outputModalities = getSummarizerModelOutputModalities(m);
+        if (outputModalities.length > 0) {
+            if (!outputModalities.includes('text')) return false;
+        }
+
+        // Exclude specialized models (Pollinations specific)
+        if (m?.is_specialized === true) return false;
+
+        // Exclude non-text models by name
+        if (/image|diffusion|dall-e|flux|stable|midjourney|embed|whisper|tts-|video|seedance|veo|wan|nanobanana|seedream|gptimage|klein/.test(id)) {
+            return false;
+        }
+
+        // Include if it matches known chat model patterns OR has explicit text output
+        const isKnownChatModel = /gpt|openai|claude|gemini|deepseek|llama|mistral|qwen|phi|command|grok|nova|kimi|glm|minimax|perplexity|sonar/.test(id);
+        const hasTextOutput = outputModalities.includes('text');
+
+        return isKnownChatModel || hasTextOutput;
+    });
+}
+
+function sortSummarizerCandidates(candidates) {
+    const preferenceOrder = [
+        'openai-fast',
+        'nova-fast',
+        'gemini-fast',
+        'gpt-4o-mini',
+        'gpt-4.1-nano',
+        'gpt-4.1-mini',
+        'gpt-4o',
+        'deepseek-chat',
+        'deepseek',
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gpt-3.5',
+        'gemini-flash',
+        'claude-3.5-haiku',
+        'claude-3-haiku',
+        'claude-haiku',
+        'claude',
+        'openai',
+        'gemini',
+        'mistral',
+        'grok',
+        'llama',
+        'qwen',
+        'phi',
+        'command',
+        'kimi',
+        'glm',
+        'minimax',
+        'perplexity',
+        'sonar',
+        'nova',
+    ];
+
+    const scoreFor = (model) => {
+        const id = getSummarizerModelId(model).toLowerCase();
+        const idx = preferenceOrder.findIndex(p => id.includes(p));
+        return idx === -1 ? 999 : idx;
+    };
+
+    return [...candidates].sort((a, b) => {
+        const scoreA = scoreFor(a);
+        const scoreB = scoreFor(b);
+        if (scoreA !== scoreB) return scoreA - scoreB;
+        return getSummarizerModelId(a).localeCompare(getSummarizerModelId(b));
+    });
+}
+
+function updateSummarizerDropdown(models, mode = summarizerModelListMode) {
+    const select = $('#nig_summarizer_model');
+    if (!select.length) return;
+
+    const settings = extension_settings[extensionName];
+    const previousValue = select.val();
+    const savedValue = settings.summarizer_model;
+    const desiredValue = savedValue || previousValue;
+
+    const candidates = sortSummarizerCandidates(buildSummarizerCandidates(models));
+
+    let visible = mode === 'all'
+        ? candidates
+        : candidates.slice(0, SUMMARIZER_RECOMMENDED_COUNT);
+
+    // Keep the current/saved model visible even if it's not in the top list.
+    if (desiredValue && !visible.some(m => getSummarizerModelId(m) === desiredValue)) {
+        const found = candidates.find(m => getSummarizerModelId(m) === desiredValue)
+            || (Array.isArray(models) ? models.find(m => getSummarizerModelId(m) === desiredValue) : null);
+        if (found) {
+            visible = [found, ...visible.filter(m => getSummarizerModelId(m) !== desiredValue)];
+        }
+    }
+
+    select.empty();
+
+    if (visible.length === 0) {
+        // Fallback: show first 15 models that output text, then first 15 overall.
+        const fallbackModels = (Array.isArray(models) ? models : [])
+            .filter(m => getSummarizerModelOutputModalities(m).includes('text') && m?.is_specialized !== true)
+            .slice(0, 15);
+        const finalFallback = fallbackModels.length > 0 ? fallbackModels : (Array.isArray(models) ? models.slice(0, 15) : []);
+
+        for (const m of finalFallback) {
+            const modelId = getSummarizerModelId(m);
+            const displayName = getSummarizerModelDisplayName(m);
+            if (modelId) select.append(`<option value="${modelId}">${displayName}</option>`);
+        }
+    } else {
+        for (const m of visible) {
+            const modelId = getSummarizerModelId(m);
+            const displayName = getSummarizerModelDisplayName(m);
+            if (modelId) select.append(`<option value="${modelId}">${displayName}</option>`);
+        }
+    }
+
+    if (savedValue && select.find(`option[value="${savedValue}"]`).length) {
+        select.val(savedValue);
+    } else if (previousValue && select.find(`option[value="${previousValue}"]`).length) {
+        select.val(previousValue);
+        settings.summarizer_model = previousValue;
+        saveSettingsDebounced();
+    } else if (select.find('option').length > 0) {
+        const firstVal = select.find('option').first().val();
+        select.val(firstVal);
+        settings.summarizer_model = firstVal;
+        saveSettingsDebounced();
+    }
+}
 
 async function fetchSummarizerModelsFromAPI(silent = false) {
     const settings = extension_settings[extensionName];
@@ -617,100 +816,14 @@ async function fetchSummarizerModelsFromAPI(silent = false) {
             totalModels: models.length,
         });
 
-        // Populate summarizer dropdown
-        const select = $('#nig_summarizer_model');
-        if (select.length) {
-            const current = select.val();
-            select.empty();
-
-            // Filter for good summarizer models - cheap, fast text models
-            const chatCandidates = models.filter(m => {
-                const id = (m.id || m.name || '').toString().toLowerCase();
-                const desc = (m.description || '').toString().toLowerCase();
-
-                // For Pollinations format: check output_modalities
-                if (m.output_modalities && Array.isArray(m.output_modalities)) {
-                    // Must output text
-                    if (!m.output_modalities.includes('text')) return false;
-                    // Exclude if it ONLY outputs non-text (image/video)
-                    if (m.output_modalities.length === 1 && !m.output_modalities.includes('text')) return false;
-                }
-
-                // Exclude specialized models (Pollinations specific)
-                if (m.is_specialized === true) return false;
-
-                // Exclude non-text models by name
-                if (/image|diffusion|dall-e|flux|stable|midjourney|embed|whisper|tts-|video|seedance|veo|wan|nanobanana|seedream|gptimage|klein/.test(id)) {
-                    return false;
-                }
-
-                // Include if it matches known chat model patterns OR has text output
-                const isKnownChatModel = /gpt|openai|claude|gemini|deepseek|llama|mistral|qwen|phi|command|grok|nova|kimi|glm|minimax|perplexity|sonar/.test(id);
-                const hasTextOutput = m.output_modalities?.includes('text');
-
-                return isKnownChatModel || hasTextOutput;
-            });
-
-            console.log(`[${extensionName}] Filtered to ${chatCandidates.length} chat candidates`);
-            addRuntimeLog('debug', 'Summarizer candidates filtered', {
-                provider: providerConfig.id,
-                totalModels: models.length,
-                candidateCount: chatCandidates.length,
-            });
-
-            // Sort by preference: cheaper/faster models first
-            const preferenceOrder = ['openai-fast', 'nova-fast', 'gemini-fast', 'openai', 'deepseek', 'gpt-4o-mini', 'gpt-4.1-nano', 'gpt-3.5', 'gemini-flash', 'gemini', 'claude-fast', 'claude-haiku', 'claude', 'mistral', 'grok', 'llama', 'qwen', 'kimi', 'glm', 'minimax'];
-
-            chatCandidates.sort((a, b) => {
-                const idA = (a.id || a.name || '').toLowerCase();
-                const idB = (b.id || b.name || '').toLowerCase();
-
-                let scoreA = preferenceOrder.findIndex(p => idA.includes(p));
-                let scoreB = preferenceOrder.findIndex(p => idB.includes(p));
-
-                if (scoreA === -1) scoreA = 999;
-                if (scoreB === -1) scoreB = 999;
-
-                return scoreA - scoreB;
-            });
-
-            // Limit to top 20 models to avoid overwhelming the dropdown
-            const limitedCandidates = chatCandidates.slice(0, 20);
-
-            if (limitedCandidates.length === 0) {
-                // Fallback: show first 15 models that output text
-                const fallbackModels = models.filter(m => !m.is_specialized && m.output_modalities?.includes('text')).slice(0, 15);
-                if (fallbackModels.length === 0) {
-                    // Ultimate fallback: just show first 15 models
-                    for (const m of models.slice(0, 15)) {
-                        const modelId = m.id || m.name;
-                        const displayName = m.description || m.name || m.id;
-                        select.append(`<option value="${modelId}">${displayName}</option>`);
-                    }
-                } else {
-                    for (const m of fallbackModels) {
-                        const modelId = m.id || m.name;
-                        const displayName = m.description || m.name || m.id;
-                        select.append(`<option value="${modelId}">${displayName}</option>`);
-                    }
-                }
-            } else {
-                for (const m of limitedCandidates) {
-                    const modelId = m.id || m.name;
-                    // Use description if available (Pollinations has nice descriptions)
-                    const displayName = m.description || m.name || m.id;
-                    select.append(`<option value="${modelId}">${displayName}</option>`);
-                }
-            }
-
-            // Restore previous or saved selection
-            const saved = extension_settings[extensionName].summarizer_model;
-            if (saved && select.find(`option[value="${saved}"]`).length) {
-                select.val(saved);
-            } else if (current && select.find(`option[value="${current}"]`).length) {
-                select.val(current);
-            }
-        }
+        addRuntimeLog('debug', 'Summarizer candidates computed', {
+            provider: providerConfig.id,
+            totalModels: models.length,
+            candidateCount: buildSummarizerCandidates(models).length,
+            mode: summarizerModelListMode,
+        });
+        updateSummarizerDropdown(models, summarizerModelListMode);
+        updateSummarizerModelListToggleButton();
 
         if (!silent) toastr.success(`Found ${models.length} models`, 'Pawtrait');
     } catch (error) {
@@ -1190,6 +1303,10 @@ function getEffectiveCharDescription() {
  */
 function getEffectiveUserDescription() {
     const settings = extension_settings[extensionName];
+
+    if (settings.include_persona === false) {
+        return '';
+    }
 
     // Get the current user avatar filename - this is the key used for personas
     const currentAvatarKey = user_avatar;
@@ -2053,6 +2170,7 @@ function getProviderConfig(settings) {
             chatUrl: 'https://openrouter.ai/api/v1/chat/completions',
             defaultApiEndpoint: 'https://openrouter.ai/api/v1/chat/completions',
             supportsGzipModelsResponse: false,
+            noApiKeyRequired: true, // Listing models is public; generation still requires an API key.
         };
     } else if (provider === 'linkapi') {
         return {
@@ -2831,14 +2949,15 @@ async function summarizeWithAI(text, charName, userName, additionalCharacters = 
         normalizedExtras.push({ name, description });
     }
 
+    const includePersona = settings.include_persona !== false;
     const appearanceLines = [
         `${charName || 'Character'}: ${charDesc || 'No description available'}`,
-        `${userName || 'User'}: ${userDesc || 'No description available'}`,
+        ...(includePersona ? [`${userName || 'User'}: ${userDesc || 'No description available'}`] : []),
         ...normalizedExtras.map(item => `${item.name}: ${item.description}`),
     ];
     const listedCharacterNames = [
         charName || 'Character',
-        userName || 'User',
+        ...(includePersona ? [userName || 'User'] : []),
         ...normalizedExtras.map(item => item.name),
     ];
     addRuntimeLog('info', 'Summarizer started', {
@@ -2854,28 +2973,27 @@ async function summarizeWithAI(text, charName, userName, additionalCharacters = 
     console.log(`[${extensionName}] summarizeWithAI - userDesc (first 100): ${userDesc?.substring(0, 100)}...`);
     console.log(`[${extensionName}] summarizeWithAI - additional characters:`, normalizedExtras.map(item => item.name));
 
-    const systemPrompt = `You are an image prompt generator for AI art.
+    const listedNamesForFormat = [
+        charName || 'Character',
+        ...(includePersona ? [userName || 'User'] : []),
+        ...normalizedExtras.map(item => item.name),
+    ];
+    const outputFormatLines = listedNamesForFormat
+        .filter(Boolean)
+        .map(name => `- ${name}: [Exact appearance details]`)
+        .join('\n');
 
-CHARACTER APPEARANCES (COPY THESE EXACTLY - do not paraphrase or change details):
-${appearanceLines.join('\n\n')}
+    const appearanceText = appearanceLines.join('\n\n');
+    const rawTemplate = typeof settings.summarizer_system_prompt_template === 'string'
+        ? settings.summarizer_system_prompt_template
+        : '';
+    const template = rawTemplate.trim().length > 0
+        ? rawTemplate
+        : defaultSettings.summarizer_system_prompt_template;
 
-TASK:
-1. First output ALL listed character appearance anchors using the exact details above.
-2. Then write a concise scene description (2-3 sentences) including pose, composition, environment, and lighting.
-
-CRITICAL: Hair colors, gradients, lengths, and other specific details must be copied EXACTLY as written above. Do not reverse gradients or change any visual details.
-CRITICAL: Character appearance accuracy is the highest priority and must override scene details.
-CRITICAL: Do NOT invent or embellish clothing/body details that are not in the appearance anchors.
-CRITICAL: Keep the output structured and readable using line breaks and bullets.
-CRITICAL: Put one blank line between each character bullet.
-
-Output format:
-Characters:
-- [Name]: [Exact appearance details]
-- [Name]: [Exact appearance details]
-
-Scene: [2-3 descriptive sentences]
-`;
+    const systemPrompt = template
+        .replaceAll('{{APPEARANCE_LINES}}', appearanceText)
+        .replaceAll('{{OUTPUT_FORMAT_LINES}}', outputFormatLines);
 
     // Clean the text (removes HTML, markdown, etc) and allow up to 6000 chars for better context
     const cleanedText = typeof text === 'string' ? text : cleanText(text);
@@ -3042,18 +3160,20 @@ async function buildPromptText(prompt, sender = null, messageId = null) {
 
     // Add character visual descriptions if enabled
     if (settings.include_descriptions) {
-        const desc = getCharacterDescriptions();
         const descParts = [];
 
-        if (desc.char_description) {
-            const cleanedDesc = cleanText(desc.char_description);
-            const shortDesc = cleanedDesc.substring(0, 300);
-            descParts.push(`${desc.char_name}: ${shortDesc}`);
+        const charDesc = getEffectiveCharDescription();
+        if (charDesc) {
+            const shortDesc = cleanText(charDesc).substring(0, 300);
+            descParts.push(`${charName}: ${shortDesc}`);
         }
-        if (desc.user_persona) {
-            const cleanedPersona = cleanText(desc.user_persona);
-            const shortPersona = cleanedPersona.substring(0, 200);
-            descParts.push(`${desc.user_name}: ${shortPersona}`);
+
+        if (settings.include_persona !== false) {
+            const userDesc = getEffectiveUserDescription();
+            if (userDesc) {
+                const shortPersona = cleanText(userDesc).substring(0, 200);
+                descParts.push(`${userName}: ${shortPersona}`);
+            }
         }
 
         if (descParts.length > 0) {
@@ -3140,7 +3260,7 @@ async function generateImageFromPrompt(prompt, sender = null, messageId = null) 
 
     if (settings.use_avatars) {
         const charAvatar = await getCharacterAvatar();
-        const userAvatar = await getUserAvatar();
+        const userAvatar = settings.include_persona !== false ? await getUserAvatar() : null;
 
         if (charAvatar) {
             console.log(`[${extensionName}] Adding character avatar: ${charAvatar.name}`);
@@ -3968,40 +4088,117 @@ async function sendImageRequest(settings, requestBody) {
     console.log(`[${extensionName}] Sending image request to ${endpoint}`);
     console.log(`[${extensionName}] Request body:`, JSON.stringify(finalRequestBody, null, 2));
 
-    const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(finalRequestBody),
-    });
-    addRuntimeLog('debug', 'Generic provider image response status', {
-        provider: providerConfig.id,
-        endpoint,
-        model: requestBody.model,
-        status: response.status,
-        ok: response.ok,
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[${extensionName}] Provider API Error:`, response.status, errorText);
-        addRuntimeLog('error', 'Generic provider image request failed', {
+    const postJson = async (body, attemptLabel) => {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        });
+        addRuntimeLog('debug', 'Generic provider image response status', {
             provider: providerConfig.id,
             endpoint,
             model: requestBody.model,
+            attempt: attemptLabel,
             status: response.status,
-            errorText,
+            ok: response.ok,
         });
-        let errorMessage = `API Error ${response.status}`;
+
+        const text = await response.text();
+        let json = null;
         try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.error?.message || errorJson.message || errorMessage;
-        } catch (err) {
-            if (errorText) errorMessage += `: ${errorText}`;
+            json = text ? JSON.parse(text) : null;
+        } catch {
+            json = null;
         }
-        throw new Error(errorMessage);
+
+        return { response, text, json };
+    };
+
+    const shouldRetryWithAlternateReferenceField = (status, errorText, body) => {
+        if (![400, 422].includes(Number(status))) return false;
+        if (!body || typeof body !== 'object') return false;
+
+        const hasSingleUrl = typeof body.imageDataUrl === 'string' && body.imageDataUrl.trim();
+        const hasSingleUrlsArray = Array.isArray(body.imageDataUrls)
+            && body.imageDataUrls.length === 1
+            && typeof body.imageDataUrls[0] === 'string'
+            && body.imageDataUrls[0].trim();
+        if (!hasSingleUrl && !hasSingleUrlsArray) return false;
+
+        // Some gateways only accept one of these field shapes; retry by swapping it.
+        // We retry on generic 400/422 as well because some providers return only "Bad Request".
+        const needle = String(errorText || '').toLowerCase();
+        if (needle.includes('imagedataurl') || needle.includes('imagedataurls')) return true;
+        if (needle.includes('unknown') && needle.includes('field')) return true;
+        if (needle.includes('unexpected') && needle.includes('field')) return true;
+        return true;
+    };
+
+    const buildAlternateSingleReferenceBody = (body) => {
+        const clone = { ...body };
+        const hasSingleUrl = typeof clone.imageDataUrl === 'string' && clone.imageDataUrl.trim();
+        const hasSingleUrlsArray = Array.isArray(clone.imageDataUrls)
+            && clone.imageDataUrls.length === 1
+            && typeof clone.imageDataUrls[0] === 'string'
+            && clone.imageDataUrls[0].trim();
+
+        if (hasSingleUrl && !Array.isArray(clone.imageDataUrls)) {
+            clone.imageDataUrls = [clone.imageDataUrl];
+            delete clone.imageDataUrl;
+            return clone;
+        }
+
+        if (hasSingleUrlsArray && !hasSingleUrl) {
+            clone.imageDataUrl = clone.imageDataUrls[0];
+            delete clone.imageDataUrls;
+            return clone;
+        }
+
+        return null;
+    };
+
+    let attempt = await postJson(finalRequestBody, 'primary');
+    if (!attempt.response.ok) {
+        console.error(`[${extensionName}] Provider API Error:`, attempt.response.status, attempt.text);
+
+        const altBody = buildAlternateSingleReferenceBody(finalRequestBody);
+        if (altBody && shouldRetryWithAlternateReferenceField(attempt.response.status, attempt.text, finalRequestBody)) {
+            addRuntimeLog('warn', 'Retrying image request with alternate reference image field', {
+                provider: providerConfig.id,
+                endpoint,
+                model: requestBody.model,
+                originalField: finalRequestBody.imageDataUrl ? 'imageDataUrl' : 'imageDataUrls',
+                retryField: altBody.imageDataUrl ? 'imageDataUrl' : 'imageDataUrls',
+            });
+            attempt = await postJson(altBody, 'fallback');
+        }
+
+        if (!attempt.response.ok) {
+            addRuntimeLog('error', 'Generic provider image request failed', {
+                provider: providerConfig.id,
+                endpoint,
+                model: requestBody.model,
+                status: attempt.response.status,
+                errorText: attempt.text,
+            });
+            let errorMessage = `API Error ${attempt.response.status}`;
+            try {
+                errorMessage = attempt.json?.error?.message || attempt.json?.message || errorMessage;
+            } catch (err) {
+                // ignore
+            }
+            if (!attempt.json && attempt.text) {
+                errorMessage += `: ${attempt.text}`;
+            }
+            throw new Error(errorMessage);
+        }
     }
 
-    const result = await response.json();
+    if (!attempt.json || typeof attempt.json !== 'object') {
+        throw new Error('Provider returned a non-JSON response.');
+    }
+
+    const result = attempt.json;
     addRuntimeLog('debug', 'Generic provider image payload', {
         provider: providerConfig.id,
         endpoint,
@@ -4489,7 +4686,7 @@ async function showEditGeneratePopup(messageId) {
 
     // Get avatars
     const charAvatar = await getCharacterAvatar();
-    const userAvatar = await getUserAvatar();
+    const userAvatar = settings.include_persona !== false ? await getUserAvatar() : null;
 
     // Active characters can be used as extra references in Edit & Generate
     const activeCharNames = getActiveCharacterNames().filter(name => name && name !== charName);
@@ -5010,7 +5207,8 @@ jQuery(async () => {
         // Fetch models if API key exists or provider doesn't require one
         const providerConfig = getProviderConfig(extension_settings[extensionName]);
         if (getCurrentApiKey() || providerConfig.noApiKeyRequired) {
-            await fetchModelsFromAPI(false);
+            const silentFetch = !getCurrentApiKey();
+            await fetchModelsFromAPI(silentFetch);
             await fetchSummarizerModelsFromAPI(true);
         }
 
@@ -5058,8 +5256,37 @@ jQuery(async () => {
         saveSettingsDebounced();
     });
 
+    $('#nig_summarizer_system_prompt_template').on('input', function() {
+        extension_settings[extensionName].summarizer_system_prompt_template = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    // Persist long-form edits promptly when focus is lost.
+    $('#nig_summarizer_system_prompt_template').on('change', function() {
+        extension_settings[extensionName].summarizer_system_prompt_template = $(this).val();
+        saveSettings();
+    });
+
+    $('#nig_reset_summarizer_system_prompt_template').on('click', function() {
+        extension_settings[extensionName].summarizer_system_prompt_template = defaultSettings.summarizer_system_prompt_template;
+        $('#nig_summarizer_system_prompt_template').val(defaultSettings.summarizer_system_prompt_template);
+        saveSettings();
+        toastr.info('Summarizer prompt reset.', 'Pawtrait');
+    });
+
     $('#nig_fetch_models_btn').on('click', fetchModelsFromAPI);
     $('#nig_fetch_summarizer_models_btn').on('click', function() { fetchSummarizerModelsFromAPI(false); });
+    $('#nig_toggle_summarizer_models_btn').on('click', async function() {
+        summarizerModelListMode = summarizerModelListMode === 'all' ? 'recommended' : 'all';
+        updateSummarizerModelListToggleButton();
+
+        if (!cachedChatModels || cachedChatModels.length === 0) {
+            await fetchSummarizerModelsFromAPI(false);
+            return;
+        }
+
+        updateSummarizerDropdown(cachedChatModels, summarizerModelListMode);
+    });
 
     // Character Description Settings
     $('#nig_char_select').on('change', function() {
@@ -5260,6 +5487,12 @@ jQuery(async () => {
     $('#nig_use_avatars').on('change', function() {
         extension_settings[extensionName].use_avatars = $(this).prop('checked');
         saveSettingsDebounced();
+    });
+
+    $('#nig_include_persona').on('change', function() {
+        extension_settings[extensionName].include_persona = $(this).prop('checked');
+        // Save immediately so a page refresh right after toggling doesn't lose the change.
+        saveSettings();
     });
 
     $('#nig_include_descriptions').on('change', function() {

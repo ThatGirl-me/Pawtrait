@@ -11,10 +11,12 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/github/stars/ThatGirl-me/Pawtrait?style=for-the-badge&color=ff9ecf">
-  <img src="https://img.shields.io/github/forks/ThatGirl-me/Pawtrait?style=for-the-badge&color=ffb7d5">
-  <img src="https://img.shields.io/github/license/ThatGirl-me/Pawtrait?style=for-the-badge&color=ff7eb6">
-  <img src="https://img.shields.io/github/last-commit/ThatGirl-me/Pawtrait?style=for-the-badge&color=ffa6cc">
+<img src="https://img.shields.io/github/stars/ThatGirl-me/Pawtrait?style=for-the-badge&label=%E2%AD%90%20stars&color=ff9ecf">
+<img src="https://img.shields.io/github/forks/ThatGirl-me/Pawtrait?style=for-the-badge&label=%F0%9F%8D%B4%20forks&color=ffb7d5">
+<img src="https://img.shields.io/github/last-commit/ThatGirl-me/Pawtrait?style=for-the-badge&label=%F0%9F%93%85%20last%20commit&color=ffa6cc">
+<img src="https://img.shields.io/badge/🦴%20version-v1.0.3-ff9ecf?style=for-the-badge&color=ffa6cc">
+
+
 </p>
 
 ---
@@ -35,6 +37,34 @@ Built for storytellers, world-builders, and emotional girls with a love for visu
 Made with paws. Made with love. 🐾💗
 
 ---
+## 🔄 Updates 
+
+### 🆕 What’s New — v1.0.3
+
+Pawtrait v1.0.3 brings more control, more clarity, and more prompt magic ✨
+
+
+✨ New & Improved
+
+1. 👤 Include Persona (User) Toggle
+     - Added include_persona option so you can generate images without your user persona when you want pure character-focused visuals.
+
+2. 🧠 Editable Summarizer System Prompt
+     - The AI summarizer now has a fully editable system prompt template, giving you complete control over how prompts are crafted.
+
+3. 🎯 Smarter Summarizer Model Selection
+     - Summarizer models are now provider-specific
+
+   - Shows top 5 recommended models by default
+
+   - Includes a toggle to show all available models if you want full power-user access
+
+   - This update makes Pawtrait more flexible for both cozy storytelling and precision prompt crafting 🐾💗
+
+
+
+---
+
 
 ## ✨ Features
 

@@ -8,7 +8,7 @@
     "css": "style.css",
     "author": "ThatGirl-me",
     "description": "Multi-provider image generation with avatar references and character context. Supports NanoGPT, OpenRouter, LinkAPI, and Pollinations.",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "homePage": "https://github.com/ThatGirl-me/Pawtrait",
     "manifest_version": 3
 }

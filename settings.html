@@ -76,8 +76,9 @@
 <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
 </select>
 <div id="nig_fetch_summarizer_models_btn" class="nig_input_btn" title="Fetch Summarizer Models"><i class="fa-solid fa-rotate"></i></div>
+<div id="nig_toggle_summarizer_models_btn" class="nig_input_btn" title="Show All Models"><i class="fa-solid fa-list"></i></div>
 </div>
-<small class="nig_hint">Fetch available chat/summarizer models from the selected provider.</small>
+<small class="nig_hint">Refresh models from the selected provider. The list button toggles between recommended and all models.</small>
 </div>
 </div>
 </div>
@@ -179,7 +180,7 @@
 <div class="nig_section_title"><i class="fa-solid fa-wand-magic-sparkles"></i> Reference Images</div>
 <label class="nig_checkbox">
 <input type="checkbox" id="nig_use_avatars" /><span class="nig_checkbox_mark"></span>
-<span class="nig_checkbox_label">Use Character & User Avatars<small>Requires compatible model</small></span>
+<span class="nig_checkbox_label">Use Avatar References<small>Requires compatible model</small></span>
 </label>
 <label class="nig_checkbox">
 <input type="checkbox" id="nig_use_previous_image" /><span class="nig_checkbox_mark"></span>
@@ -188,6 +189,10 @@
 <label class="nig_checkbox">
 <input type="checkbox" id="nig_include_descriptions" /><span class="nig_checkbox_mark"></span>
 <span class="nig_checkbox_label">Include Character Descriptions<small>Add appearance info to prompt</small></span>
+</label>
+<label class="nig_checkbox">
+<input type="checkbox" id="nig_include_persona" /><span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Include Persona (User)<small>Exclude this to generate without your persona</small></span>
 </label>
 </div>
 <div class="nig_section">
@@ -203,6 +208,12 @@
 <label for="nig_system_instruction">Style Prefix</label>
 <textarea id="nig_system_instruction" class="text_pole textarea_compact" rows="2" placeholder="e.g. Detailed illustration, anime style"></textarea>
 <div id="nig_reset_instruction" class="menu_button menu_button_icon nig_small_btn"><i class="fa-solid fa-rotate-left"></i> Reset</div>
+</div>
+<div class="nig_field">
+<label for="nig_summarizer_system_prompt_template">Summarizer System Prompt</label>
+<textarea id="nig_summarizer_system_prompt_template" class="text_pole" rows="10" placeholder="System prompt used when Pawtrait asks a chat model to summarize text into an image prompt."></textarea>
+<div id="nig_reset_summarizer_system_prompt_template" class="menu_button menu_button_icon nig_small_btn" style="margin-top:8px;"><i class="fa-solid fa-rotate-left"></i> Reset Prompt</div>
+<small class="nig_hint">Placeholders: <code>{{APPEARANCE_LINES}}</code> and <code>{{OUTPUT_FORMAT_LINES}}</code>. Keep them if you want Pawtrait to inject character anchors and the output format.</small>
 </div>
 </div>
 <div class="nig_section">
