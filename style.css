@@ -1,0 +1,1371 @@
+/**
+ * Pawtrait 🐾
+ * Multi-provider image generation with avatar references and character context
+ * Supports NanoGPT, OpenRouter, LinkAPI.ai, Pollinations.ai, and Custom endpoints
+ * Author: ThatGirl-me
+ * Version 1.0.2
+ */
+
+
+
+.nig_settings {
+    margin-bottom: 10px;
+}
+
+/* Tabs */
+.nig_tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    padding-bottom: 10px;
+}
+
+.nig_tab {
+    flex: 1;
+    padding: 8px 12px;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    font-size: 0.85em;
+    color: var(--SmartThemeQuoteColor);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.nig_tab:hover {
+    background: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+}
+
+.nig_tab.active {
+    background: var(--SmartThemeBlurTintColor);
+    color: var(--SmartThemeBodyColor);
+    border-bottom: 2px solid var(--SmartThemeQuoteColor);
+}
+
+.nig_tab i {
+    font-size: 0.9em;
+}
+
+.nig_tab_break {
+    flex-basis: 100%;
+    width: 100%;
+    height: 0;
+    padding: 0;
+    margin: 0;
+}
+
+/* Tab Content */
+.nig_tab_content {
+    display: none;
+}
+
+.nig_tab_content.active {
+    display: block;
+}
+
+/* Sections */
+.nig_section {
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.nig_section_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.nig_section_title {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: var(--SmartThemeBodyColor);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.nig_section_title i {
+    color: var(--SmartThemeQuoteColor);
+}
+
+/* Fields */
+.nig_field {
+    margin-bottom: 12px;
+}
+
+.nig_field:last-child {
+    margin-bottom: 0;
+}
+
+.nig_field label {
+    display: block;
+    font-size: 0.85em;
+    margin-bottom: 4px;
+    color: var(--SmartThemeBodyColor);
+}
+
+.nig_hint {
+    display: block;
+    font-size: 0.8em;
+    color: var(--SmartThemeQuoteColor);
+    margin-top: 3px;
+}
+
+/* Input Group */
+.nig_input_group {
+    display: flex;
+    gap: 4px;
+}
+
+.nig_input_group .text_pole {
+    flex: 1;
+}
+
+.nig_input_btn {
+    padding: 8px 12px;
+    background: var(--SmartThemeBorderColor);
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nig_input_btn:hover {
+    background: var(--SmartThemeQuoteColor);
+}
+
+/* Checkboxes */
+.nig_checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.nig_checkbox:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.nig_checkbox input {
+    display: none;
+}
+
+.nig_checkbox_mark {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--SmartThemeBorderColor);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+    transition: all 0.2s;
+}
+
+.nig_checkbox input:checked + .nig_checkbox_mark {
+    background: var(--SmartThemeQuoteColor);
+    border-color: var(--SmartThemeQuoteColor);
+}
+
+.nig_checkbox input:checked + .nig_checkbox_mark::after {
+    content: '✓';
+    color: var(--SmartThemeBodyColor);
+    font-size: 12px;
+}
+
+.nig_checkbox_label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nig_checkbox_label small {
+    font-size: 0.8em;
+    color: var(--SmartThemeQuoteColor);
+}
+
+/* Range Slider */
+.nig_range_container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nig_range_container input[type="range"] {
+    flex: 1;
+}
+
+.nig_range_value {
+    min-width: 24px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--SmartThemeQuoteColor);
+}
+
+/* Buttons */
+.nig_full_btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.nig_small_btn {
+    padding: 4px 10px !important;
+    font-size: 0.85em;
+}
+
+.nig_button_row {
+    display: flex;
+    gap: 8px;
+}
+
+.nig_button_row .menu_button {
+    flex: 1;
+    justify-content: center;
+}
+
+.nig_danger {
+    color: #ff6b6b !important;
+}
+
+.nig_danger:hover {
+    background: rgba(255, 107, 107, 0.2) !important;
+}
+
+/* Model Badge */
+.nig_model_badge {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Status */
+.nig_status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    background: rgba(255,255,255,0.03);
+}
+
+.nig_status_dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--SmartThemeQuoteColor);
+}
+
+.nig_status.connected .nig_status_dot {
+    background: #5cb85c;
+}
+
+.nig_status.error .nig_status_dot {
+    background: #ff6b6b;
+}
+
+/* Preview */
+.nig_preview {
+    margin-bottom: 12px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.nig_preview img {
+    width: 100%;
+    display: block;
+}
+
+/* Gallery */
+.nig_gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+    gap: 6px;
+}
+
+.nig_gallery_item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.nig_gallery_item:hover {
+    transform: scale(1.05);
+}
+
+.nig_gallery_item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.nig_gallery_item_overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+}
+
+/* Desktop: show on hover */
+@media (hover: hover) {
+    .nig_gallery_item:hover .nig_gallery_item_overlay {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+/* Touch devices: always show overlay */
+@media (hover: none) {
+    .nig_gallery_item_overlay {
+        opacity: 1;
+        pointer-events: auto;
+        background: rgba(0, 0, 0, 0.5);
+    }
+}
+
+/* Mobile: show overlay on tap (via .touched class added by JS) */
+.nig_gallery_item.touched .nig_gallery_item_overlay {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.nig_gallery_view {
+    color: white;
+    font-size: 1em;
+    padding: 8px;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(52, 152, 219, 0.9);
+    border-radius: 50%;
+    transition: transform 0.15s, background 0.15s;
+}
+
+.nig_gallery_view:hover,
+.nig_gallery_view:active {
+    background: rgba(52, 152, 219, 1);
+    transform: scale(1.1);
+}
+
+.nig_gallery_delete {
+    color: white;
+    font-size: 1em;
+    padding: 8px;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 107, 107, 0.9);
+    border-radius: 50%;
+    transition: transform 0.15s, background 0.15s;
+}
+
+.nig_gallery_delete:hover,
+.nig_gallery_delete:active {
+    background: rgba(255, 107, 107, 1);
+    transform: scale(1.1);
+}
+
+.nig_gallery_empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 30px;
+    color: var(--SmartThemeQuoteColor);
+    text-align: center;
+    gap: 8px;
+}
+
+.nig_gallery_empty i {
+    font-size: 2em;
+    opacity: 0.5;
+}
+
+.nig_gallery_empty small {
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+/* Logs */
+.nig_logs_toolbar {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 10px 0 12px;
+}
+
+.nig_logs_toolbar .nig_button_row {
+    margin-left: auto;
+}
+
+.nig_logs_toolbar .nig_button_row .menu_button {
+    flex: 0 0 auto;
+}
+
+.nig_checkbox_compact {
+    margin: 0;
+    padding: 4px 6px;
+    align-items: center;
+}
+
+.nig_checkbox_compact .nig_checkbox_mark {
+    margin-top: 0;
+}
+
+.nig_checkbox_compact .nig_checkbox_label {
+    flex-direction: row;
+    align-items: center;
+}
+
+.nig_logs_list {
+    height: 420px;
+    overflow-y: auto !important;
+    display: block;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    padding: 8px;
+    background: rgba(0,0,0,0.2);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.nig_log_item {
+    margin-bottom: 8px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 6px;
+    background: rgba(0,0,0,0.2);
+    overflow: hidden;
+}
+
+.nig_log_item:last-child {
+    margin-bottom: 0;
+}
+
+.nig_log_head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    font-size: 0.8em;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    background: rgba(255,255,255,0.03);
+}
+
+.nig_log_toggle {
+    margin-left: auto;
+    border: 1px solid var(--SmartThemeBorderColor);
+    background: rgba(255,255,255,0.04);
+    color: var(--SmartThemeBodyColor);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    cursor: pointer;
+}
+
+.nig_log_toggle:hover {
+    background: rgba(255,255,255,0.12);
+}
+
+.nig_log_time {
+    color: var(--SmartThemeQuoteColor);
+    opacity: 0.9;
+    white-space: nowrap;
+}
+
+.nig_log_level {
+    font-size: 0.75em;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.nig_log_level.debug {
+    background: rgba(108, 117, 125, 0.25);
+    color: #d0d4d8;
+}
+
+.nig_log_level.info {
+    background: rgba(52, 152, 219, 0.25);
+    color: #8fd2ff;
+}
+
+.nig_log_level.warn {
+    background: rgba(240, 173, 78, 0.25);
+    color: #ffd08a;
+}
+
+.nig_log_level.error {
+    background: rgba(255, 107, 107, 0.25);
+    color: #ff9d9d;
+}
+
+.nig_log_event {
+    color: var(--SmartThemeBodyColor);
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.nig_log_details {
+    margin: 0;
+    padding: 8px;
+    font-size: 0.78em;
+    line-height: 1.35;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--SmartThemeQuoteColor);
+    overflow: visible;
+}
+
+/* Popups */
+.nig_popup_overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.85) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 999999 !important;
+    /* Mobile: allow scrolling if content overflows */
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.nig_popup {
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 12px;
+    max-width: 90vw;
+    max-height: 90vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    /* Mobile: ensure popup doesn't get cut off */
+    margin: 20px;
+}
+
+.nig_popup_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.nig_popup_close {
+    cursor: pointer;
+    padding: 8px 12px;
+    font-size: 1.2em;
+    opacity: 0.7;
+    /* Larger touch target */
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nig_popup_close:hover,
+.nig_popup_close:active {
+    opacity: 1;
+}
+
+.nig_popup img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+}
+
+.nig_popup_prompt {
+    padding: 12px 16px;
+    font-size: 0.9em;
+    color: var(--SmartThemeQuoteColor);
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    max-height: 80px;
+    overflow-y: auto;
+}
+
+/* Error Popup */
+.nig_error_overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000001 !important;
+}
+
+/* Keep notifications above Pawtrait overlays */
+#toast-container {
+    z-index: 1000002 !important;
+}
+
+.nig_error_popup {
+    background: var(--SmartThemeBlurTintColor);
+    border: 2px solid #ff6b6b;
+    border-radius: 12px;
+    max-width: 450px;
+    width: 90%;
+}
+
+.nig_error_header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    color: #ff6b6b;
+    font-weight: 600;
+}
+
+.nig_error_body {
+    padding: 16px;
+    word-break: break-word;
+    font-size: 0.95em;
+}
+
+.nig_error_footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Confirm Popup */
+.nig_confirm_popup {
+    background: var(--SmartThemeBlurTintColor);
+    border: 2px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    max-width: 350px;
+    width: 90%;
+}
+
+.nig_confirm_header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    color: #ff6b6b;
+    font-weight: 600;
+}
+
+.nig_confirm_body {
+    padding: 16px;
+    font-size: 0.95em;
+    color: var(--SmartThemeBodyColor);
+}
+
+.nig_confirm_footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.nig_confirm_cancel {
+    background: var(--SmartThemeBorderColor);
+}
+
+.nig_confirm_delete {
+    background: #ff6b6b !important;
+    color: white !important;
+}
+
+.nig_confirm_delete:hover {
+    background: #ff5252 !important;
+}
+
+/* Message Button */
+.nig_message_edit {
+    color: #3498db !important;
+    cursor: pointer;
+    /* Ensure it's clickable on mobile */
+    -webkit-tap-highlight-color: rgba(52, 152, 219, 0.3);
+}
+
+.nig_message_edit:hover,
+.nig_message_edit:active {
+    color: #2980b9 !important;
+}
+
+.nig_busy {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+#nig_generate_btn.generating {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+/* Prompt Preview */
+#nig_prompt_preview {
+    font-family: monospace;
+    font-size: 0.8em;
+    background: rgba(0,0,0,0.2);
+    resize: vertical;
+}
+
+/* Edit Popup */
+.nig_edit_overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.85) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 999999 !important;
+}
+
+.nig_edit_popup {
+    background: var(--SmartThemeBlurTintColor);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    max-height: 90dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.nig_edit_header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--SmartThemeBorderColor);
+    font-weight: 600;
+}
+
+.nig_edit_header i:first-child {
+    margin-right: 8px;
+    color: #3498db;
+}
+
+.nig_edit_close {
+    cursor: pointer;
+    padding: 4px 8px;
+    opacity: 0.7;
+}
+
+.nig_edit_close:hover {
+    opacity: 1;
+}
+
+.nig_edit_body {
+    padding: 18px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0; /* Important for flex overflow */
+}
+
+.nig_edit_section {
+    margin-bottom: 18px;
+}
+
+.nig_edit_section:last-child {
+    margin-bottom: 0;
+}
+
+.nig_edit_section > label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.nig_edit_section textarea {
+    width: 100%;
+    resize: vertical;
+    font-size: 0.9em;
+}
+
+.nig_edit_footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+/* Avatar Options */
+.nig_avatar_options {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.nig_avatar_option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: 2px solid transparent;
+}
+
+.nig_avatar_option:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.nig_avatar_option:has(input:checked) {
+    border-color: #3498db;
+    background: rgba(52, 152, 219, 0.1);
+}
+
+.nig_avatar_option input {
+    display: none;
+}
+
+.nig_avatar_option img {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.nig_avatar_placeholder {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.08);
+    color: var(--SmartThemeQuoteColor);
+}
+
+.nig_avatar_option span {
+    font-size: 0.8em;
+    color: var(--SmartThemeQuoteColor);
+}
+
+.nig_warning {
+    color: #f0ad4e !important;
+    display: block;
+    margin-top: 8px;
+}
+
+/* Edit Prompt Actions */
+.nig_edit_prompt_actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+.nig_edit_buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.nig_edit_buttons .menu_button {
+    padding: 4px 10px;
+}
+
+/* Preview Text Box */
+.nig_preview_text {
+    background: rgba(0,0,0,0.2);
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    color: var(--SmartThemeQuoteColor);
+    max-height: 100px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.nig_preview_text small {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--SmartThemeBodyColor);
+}
+
+#nig_char_card_preview {
+    margin-top: 10px;
+    border-left: 3px solid var(--SmartThemeQuoteColor);
+}
+
+/* Saved Characters List */
+.nig_saved_list {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--SmartThemeBorderColor);
+}
+
+.nig_saved_item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    margin-bottom: 4px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.nig_saved_item:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.nig_saved_name {
+    font-weight: 600;
+    min-width: 100px;
+    color: var(--SmartThemeBodyColor);
+}
+
+.nig_saved_desc {
+    flex: 1;
+    font-size: 0.85em;
+    color: var(--SmartThemeQuoteColor);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nig_saved_actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.nig_saved_actions i {
+    padding: 4px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.nig_saved_actions i:hover {
+    opacity: 1;
+}
+
+.nig_edit_char_desc,
+.nig_edit_persona_desc {
+    color: #3498db;
+}
+
+.nig_delete_char_desc,
+.nig_delete_persona_desc {
+    color: #ff6b6b;
+}
+
+
+/* Disabled button state - custom class to avoid ST interference */
+.nig_btn_disabled {
+    pointer-events: none !important;
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+    /* Tabs - stack or scroll horizontally */
+    .nig_tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding-bottom: 5px;
+    }
+
+    .nig_tab_break {
+        display: none;
+    }
+
+    .nig_tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .nig_tab {
+        flex: 0 0 auto;
+        padding: 8px 10px;
+        font-size: 0.8em;
+        white-space: nowrap;
+    }
+
+    .nig_tab i {
+        display: none;
+    }
+
+    /* Sections */
+    .nig_section {
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+
+    .nig_section_title {
+        font-size: 0.85em;
+    }
+
+    /* Fields */
+    .nig_field label {
+        font-size: 0.8em;
+    }
+
+    .nig_hint {
+        font-size: 0.75em;
+    }
+
+    /* Buttons */
+    .nig_button_row {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .nig_button_row .menu_button {
+        width: 100%;
+    }
+
+    .nig_logs_toolbar .nig_button_row {
+        flex-direction: row;
+        width: auto;
+        margin-left: 0;
+    }
+
+    .nig_logs_toolbar .nig_button_row .menu_button {
+        width: auto;
+    }
+
+    .nig_full_btn {
+        font-size: 0.85em;
+        padding: 10px !important;
+    }
+
+    /* Checkboxes */
+    .nig_checkbox {
+        padding: 6px;
+    }
+
+    .nig_checkbox_label {
+        font-size: 0.85em;
+    }
+
+    .nig_checkbox_label small {
+        font-size: 0.75em;
+    }
+
+    /* Gallery - larger items on mobile */
+    .nig_gallery {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 8px;
+    }
+
+    .nig_gallery_item {
+        /* Ensure touch targets are large enough */
+        min-height: 80px;
+    }
+
+    .nig_logs_list {
+        height: 320px;
+    }
+
+    .nig_gallery_view,
+    .nig_gallery_delete {
+        width: 40px;
+        height: 40px;
+        font-size: 1.1em;
+    }
+
+    /* Edit Popup - Full screen on mobile */
+    .nig_edit_overlay {
+        padding: 0 !important;
+        align-items: flex-start !important;
+        overflow: hidden !important;
+    }
+
+    .nig_edit_popup {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        max-height: 100vh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .nig_edit_header {
+        padding: 10px 12px !important;
+        flex-shrink: 0 !important;
+    }
+
+    .nig_edit_close {
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .nig_edit_body {
+        padding: 12px !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch;
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+    }
+
+    .nig_edit_section {
+        margin-bottom: 12px !important;
+    }
+
+    .nig_edit_section textarea {
+        font-size: 16px !important; /* Prevent iOS zoom */
+    }
+
+    #nig_edit_prompt {
+        min-height: 80px !important;
+        max-height: 120px !important;
+    }
+
+    .nig_edit_footer {
+        padding: 10px 12px !important;
+        flex-wrap: wrap;
+        gap: 8px;
+        flex-shrink: 0 !important;
+        border-top: 1px solid var(--SmartThemeBorderColor);
+        background: var(--SmartThemeBlurTintColor);
+    }
+
+    .nig_edit_footer .menu_button {
+        flex: 1;
+        min-width: 80px;
+        justify-content: center;
+        min-height: 44px;
+        font-size: 0.9em;
+    }
+
+    /* Avatar options - smaller on mobile */
+    .nig_avatar_options {
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+
+    .nig_avatar_option {
+        padding: 6px;
+    }
+
+    .nig_avatar_option img {
+        width: 45px !important;
+        height: 45px !important;
+    }
+
+    .nig_avatar_placeholder {
+        width: 45px !important;
+        height: 45px !important;
+    }
+
+    .nig_avatar_option span {
+        font-size: 0.65em !important;
+    }
+
+    /* Edit prompt actions */
+    .nig_edit_prompt_actions {
+        flex-direction: column;
+        gap: 8px;
+        align-items: stretch;
+    }
+
+    .nig_edit_buttons {
+        justify-content: flex-end;
+    }
+
+    /* Error popup */
+    .nig_error_popup {
+        width: 95%;
+        max-width: 95%;
+    }
+
+    .nig_error_close {
+        min-height: 44px;
+    }
+
+    /* Image popup - better mobile sizing */
+    .nig_popup {
+        width: 95%;
+        max-width: 95%;
+        margin: 10px;
+    }
+
+    .nig_popup img {
+        max-height: 60vh;
+        width: 100%;
+        object-fit: contain;
+    }
+
+    .nig_popup_prompt {
+        max-height: 100px;
+        font-size: 0.85em;
+    }
+
+    /* Range slider */
+    .nig_range_container {
+        gap: 8px;
+    }
+
+    /* Input group */
+    .nig_input_group {
+        flex-wrap: nowrap;
+    }
+
+    .nig_input_btn {
+        padding: 8px 10px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* Extra small screens */
+@media (max-width: 480px) {
+    .nig_tab {
+        padding: 6px 8px;
+        font-size: 0.75em;
+    }
+
+    .nig_section {
+        padding: 8px;
+    }
+
+    .nig_avatar_option img {
+        width: 40px;
+        height: 40px;
+    }
+
+    .nig_avatar_placeholder {
+        width: 40px;
+        height: 40px;
+    }
+
+    .nig_gallery {
+        grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+        gap: 6px;
+    }
+
+    .nig_gallery_item {
+        min-height: 70px;
+    }
+
+    #nig_edit_prompt {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+
+    .nig_edit_section textarea {
+        font-size: 16px;
+    }
+
+    select.text_pole,
+    input.text_pole {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+
+    /* Popup adjustments for small screens */
+    .nig_popup {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        border-radius: 0;
+        max-height: 100vh;
+    }
+
+    .nig_popup img {
+        max-height: 50vh;
+    }
+
+    .nig_popup_header {
+        padding: 10px 12px;
+    }
+
+    .nig_popup_prompt {
+        padding: 10px 12px;
+        max-height: 80px;
+    }
+}
+
+/* Touch device specific - ensure buttons are tappable */
+@media (pointer: coarse) {
+    .nig_gallery_view,
+    .nig_gallery_delete {
+        width: 44px;
+        height: 44px;
+        font-size: 1.2em;
+    }
+
+    .nig_popup_close,
+    .nig_edit_close,
+    .nig_error_close {
+        min-width: 48px;
+        min-height: 48px;
+    }
+
+    .menu_button {
+        min-height: 44px;
+    }
+}
