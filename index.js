@@ -186,7 +186,7 @@ function getModelCapabilityPreset(modelId, family = 'generic-image', providerId 
     }
 
     if (
-        /flux|stable[-_ ]?diffusion|sdxl|ideogram|recraft|hidream|z-image|qwen-image|seedream|hunyuan-image|glm-image|longcat-image|grok-.*image|imagen|kling-image|bria|lucid|riverflow|klein/.test(id)
+        /flux|nai-diffusion|stable[-_ ]?diffusion|sdxl|ideogram|recraft|hidream|z-image|qwen-image|seedream|hunyuan-image|glm-image|longcat-image|grok-.*image|imagen|kling-image|bria|lucid|riverflow|klein/.test(id)
     ) {
         return toPreset(DEFAULT_ASPECT_RATIO_OPTIONS, COMMON_IMAGE_DIMENSION_OPTIONS);
     }
@@ -3614,6 +3614,12 @@ async function sendLinkAPIChatImageRequest(settings, requestBody) {
         });
     }
 
+    const dimensionCandidates = modelProfile.dimensionSizes.length > 0
+        ? modelProfile.dimensionSizes
+        : ['1024x1024', '832x1216', '1216x832'];
+    const bestSize = getBestDimensionSizeForAspectRatio(aspectRatio, dimensionCandidates);
+    const finalSize = (bestSize || requestBody.size || getImageSize(settings.aspect_ratio || '1:1')).replace('x', ':');
+
     const linkApiRequestBody = {
         model: requestBody.model,
         messages: [
@@ -3627,7 +3633,7 @@ async function sendLinkAPIChatImageRequest(settings, requestBody) {
         modalities: ['image', 'text'],
         stream: false,
         image_config: {
-            size: (requestBody.size || getImageSize(settings.aspect_ratio || '1:1')).replace('x', ':'),
+            size: finalSize,
         },
     };
 
