@@ -3741,15 +3741,39 @@ async function sendLinkAPIChatImageRequest(settings, requestBody) {
                     }
                 }
             }
+            // Gemini-style inlineData parts
+            const inlineData = part.inlineData || part.inline_data;
+            if (inlineData && inlineData.data) {
+                return {
+                    imageData: inlineData.data,
+                    mimeType: inlineData.mimeType || inlineData.mime_type || 'image/png',
+                };
+            }
+        }
+    }
+
+    // Check for content as string (base64 or data URL)
+    if (typeof message.content === 'string' && message.content.length > 256) {
+        const content = message.content.trim();
+        if (content.startsWith('data:')) {
+            const match = content.match(/^data:([^;]+);base64,(.+)$/);
+            if (match) return { imageData: match[2], mimeType: match[1] };
+        }
+        if (/^[A-Za-z0-9+/\r\n]+=*$/.test(content)) {
+            return { imageData: content, mimeType: 'image/png' };
         }
     }
 
     // Check for base64 data directly in the response (some providers return data array)
-    if (result.data?.[0]?.b64_json) {
-        return { imageData: result.data[0].b64_json, mimeType: 'image/png' };
+    const entry = result.data?.[0] || result.images?.[0] || (Array.isArray(result) ? result[0] : null);
+    if (entry?.b64_json) {
+        return { imageData: entry.b64_json, mimeType: 'image/png' };
     }
-    if (result.data?.[0]?.url) {
-        const imageResponse = await fetch(result.data[0].url);
+    if (entry?.b64) {
+        return { imageData: entry.b64, mimeType: 'image/png' };
+    }
+    if (entry?.url) {
+        const imageResponse = await fetch(entry.url);
         if (imageResponse.ok) {
             const blob = await imageResponse.blob();
             const base64 = await getBase64Async(blob);
@@ -3759,10 +3783,22 @@ async function sendLinkAPIChatImageRequest(settings, requestBody) {
         }
     }
 
-    console.error(`[${extensionName}] No image found in LinkAPI chat response:`, message);
+    // Top-level fallbacks
+    if (result.b64_json) {
+        return { imageData: result.b64_json, mimeType: 'image/png' };
+    }
+    if (result.b64) {
+        return { imageData: result.b64, mimeType: 'image/png' };
+    }
+
+    console.error(`[${extensionName}] No image found in LinkAPI chat response:`, JSON.stringify(result, null, 2).substring(0, 2000));
     addRuntimeLog('error', 'LinkAPI chat response missing image', {
         model: requestBody.model,
-        message,
+        responseKeys: Object.keys(result || {}),
+        messageKeys: Object.keys(message || {}),
+        messageContentType: typeof message.content,
+        messageContentIsArray: Array.isArray(message.content),
+        messageContentLength: typeof message.content === 'string' ? message.content.length : Array.isArray(message.content) ? message.content.length : 0,
     });
     throw new Error('No image returned from LinkAPI. The model may have returned text only.');
 }
