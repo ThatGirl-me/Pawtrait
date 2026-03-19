@@ -142,6 +142,57 @@ RULES:
     studio_include_persona: true,
     studio_negative_prompt_system: `You are a negative prompt generator for AI image generation. Given a positive image prompt, generate a concise negative prompt listing things to AVOID in the image. Focus on common quality issues and things that would conflict with the desired output. RULES: - Output ONLY the negative prompt tags, comma-separated. - Include standard quality negatives (lowres, blurry, bad anatomy, etc.) appropriate for the subject. - Add subject-specific negatives based on what's in the positive prompt. - Keep it concise — no more than 40 tags. - Do NOT include any explanation, commentary, or formatting. Just the comma-separated tags.`,
     studio_enhance_length: 'detailed',
+    studio_enhance_system_prompt_nai: `You are a prompt engineer specializing in NovelAI Diffusion V4.5 image generation. Transform natural descriptions into optimized NAI-format prompts.
+You MUST respond with a JSON object containing exactly three fields: "prompt", "negative_prompt", and "notes". No other text outside the JSON.
+{{#if CHARACTERS}}
+CHARACTER APPEARANCES TO INCLUDE:
+{{CHARACTERS}}
+CRITICAL: Convert ALL listed character appearance details into tag format. Do not omit any physical traits, clothing, or accessories. Every detail matters.
+{{/if}}
+PROMPT ARCHITECTURE:
+- A NAI prompt uses the | pipe character to separate the base prompt from character prompts.
+- Base prompt contains: [dataset tag], [character count], [scene/setting tags], [style/medium tags], [quality tags]. [Natural language scene description.]
+- Each character section contains: [gender tag], [appearance tags], [clothing tags], [pose/action tags]. [Natural language elaboration.]
+TAG RULES:
+- All tags MUST be lowercase, separated by comma + space.
+- NEVER use underscores in tags. Write "long hair" not "long_hair".
+- Natural language sentences use normal capitalization and grammar.
+- Tags and natural language can be intermixed.
+- For furry/anthropomorphic characters, start the base prompt with "fur dataset,"
+MULTI-CHARACTER FORMAT:
+- Character count tags (1girl, 2girls, 1other, etc.) go in the base prompt ONLY.
+- Each character section after a | starts with a gender tag WITHOUT count: "girl", "boy", or "other".
+- For interactions use action tags: source#action, target#action, mutual#action
+QUALITY TAGS (append to end of base prompt):
+- Use: best quality, very aesthetic, absurdres, no text
+- Do NOT over-stack quality tags. One quality + one aesthetic tag is sufficient.
+EMPHASIS (use sparingly):
+- Strengthen: {tag} = 1.05x weight. {{tag}} = 1.1025x.
+- Numeric: 2::tag :: sets weight to 2x.
+- Only emphasize elements that would otherwise be under-represented.
+NEGATIVE PROMPT:
+Always start with: lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry
+Then add scene-specific negatives based on the content (e.g., "multiple girls" for single character scenes, "bad feet" for full body shots).
+For furry/anthro characters add: human, realistic, photo
+For single character scenes add: multiple girls, multiple boys, extra people
+OUTPUT FORMAT — respond with ONLY this JSON, no other text:
+{
+  "prompt": "the complete prompt with | separators between base and character sections",
+  "negative_prompt": "tailored negative prompt",
+  "notes": "brief explanation of key decisions"
+}`,
+    studio_negative_prompt_system_nai: `You generate negative prompts for NovelAI Diffusion V4.5 image generation.
+Given a positive prompt (which may use | pipe separators for multi-character format), generate an appropriate negative prompt.
+Always start with this base:
+lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry
+Then add scene-specific negatives. Guidelines:
+- Single character scene: add "multiple girls, multiple boys, extra people"
+- Full body shot: add "bad feet, missing limbs"
+- Hands visible: add "extra fingers, fused fingers, mutated hands"
+- Clean background desired: add "busy background, cluttered"
+- Furry/anthro characters: add "human, realistic, photo" to prevent style drift
+- Specific eye/hair colors: add conflicting colors to prevent bleed
+Output ONLY the comma-separated negative tags. No explanation, no formatting, no line breaks.`,
 };
 
 const MAX_GALLERY_SIZE = 50;
@@ -630,6 +681,7 @@ async function loadSettings() {
     $('#nig_studio_include_persona').prop('checked', s.studio_include_persona !== false);
     populateStudioPersonaDropdown();
     $('#nig_studio_enhance_system_prompt').val(s.studio_enhance_system_prompt || defaultSettings.studio_enhance_system_prompt);
+    $('#nig_studio_enhance_system_prompt_nai').val(s.studio_enhance_system_prompt_nai || defaultSettings.studio_enhance_system_prompt_nai);
     $('#nig_studio_enhance_length').val(s.studio_enhance_length || 'detailed');
 
     updateModelInfo();
@@ -1620,9 +1672,12 @@ function getStudioEnhanceFormat() {
     const profile = getModelRuntimeProfile(modelId);
     const family = profile?.family || inferModelFamily(modelId);
 
+    // NAI format (must be checked before generic tags)
+    if (/nai-diffusion/i.test(modelId)) return 'nai';
+
     // Tag-based formats
     if (family === 'stable-diffusion' || family === 'hidream') return 'tags';
-    if (/nai-diffusion|sdxl|animagine|pony[-_]?diffusion/i.test(modelId)) return 'tags';
+    if (/sdxl|animagine|pony[-_]?diffusion/i.test(modelId)) return 'tags';
     if (provider === 'custom') return 'tags';
 
     // Natural language formats
@@ -1635,17 +1690,24 @@ function getStudioEnhanceFormat() {
 function updateStudioFormatBadge() {
     const format = getStudioEnhanceFormat();
     const badge = $('#nig_studio_format_badge');
-    if (format === 'tags') {
+    if (format === 'nai') {
+        badge.text('NAI Format')
+            .attr('title', 'NAI Diffusion structured format')
+            .removeClass('nig_format_natural nig_format_tags')
+            .addClass('nig_format_nai');
+    } else if (format === 'tags') {
         badge.text('Tags + Prose')
             .attr('title', 'Model expects tag-based prompts')
-            .removeClass('nig_format_natural')
+            .removeClass('nig_format_natural nig_format_nai')
             .addClass('nig_format_tags');
     } else {
         badge.text('Natural Language')
             .attr('title', 'Model expects natural language prompts')
-            .removeClass('nig_format_tags')
+            .removeClass('nig_format_tags nig_format_nai')
             .addClass('nig_format_natural');
     }
+    $('#nig_studio_nai_enhance_field').toggle(format === 'nai');
+    $('#nig_studio_general_enhance_field').toggle(format !== 'nai');
 }
 
 function gcd(a, b) {
@@ -5026,63 +5088,135 @@ async function enhanceStudioPrompt() {
             }
         }
 
-        // Build system prompt from template
-        let systemPrompt = settings.studio_enhance_system_prompt || defaultSettings.studio_enhance_system_prompt;
-
-        if (characterLines.length > 0) {
-            systemPrompt = systemPrompt
-                .replace('{{#if CHARACTERS}}', '')
-                .replace('{{/if}}', '')
-                .replace('{{CHARACTERS}}', characterLines.join('\n\n'));
-        } else {
-            systemPrompt = systemPrompt.replace(/\{\{#if CHARACTERS\}\}[\s\S]*?\{\{\/if\}\}/g, '');
-        }
-
-        let userContent = rawPrompt;
-        if (settings.studio_enhance_length === 'concise') {
-            userContent += '\n\nOutput mode: CONCISE — Keep the output to 2-4 sentences. Summarize character appearance briefly, focusing on the most distinctive traits.';
-        } else {
-            userContent += '\n\nOutput mode: DETAILED — Include every character trait listed. Do not abbreviate or omit any physical details. Length is not a constraint.';
-        }
-
         const enhanceFormat = getStudioEnhanceFormat();
-        if (enhanceFormat === 'tags') {
-            userContent += '\n\nOutput format: Use a HYBRID format — start with 1-2 short prose sentences establishing the overall scene and composition, then follow with Danbooru-style tags (comma-separated, lowercase, tag-first structure) for character details, style, and quality tags. Example structure:\n[Short prose scene description]. [Character name], [gender tag], [species/body tags], [hair tags], [eye tags], [clothing tags], [expression tags], [pose tags], [background tags], [style/quality tags]\nDo NOT write long natural language paragraphs. Character traits should be converted to tag format.';
+
+        if (enhanceFormat === 'nai') {
+            // NAI Diffusion structured format path
+            let systemPrompt = settings.studio_enhance_system_prompt_nai || defaultSettings.studio_enhance_system_prompt_nai;
+
+            if (characterLines.length > 0) {
+                systemPrompt = systemPrompt
+                    .replace('{{#if CHARACTERS}}', '')
+                    .replace('{{/if}}', '')
+                    .replace('{{CHARACTERS}}', characterLines.join('\n\n'));
+            } else {
+                systemPrompt = systemPrompt.replace(/\{\{#if CHARACTERS\}\}[\s\S]*?\{\{\/if\}\}/g, '');
+            }
+
+            let userContent = rawPrompt;
+            if (settings.studio_enhance_length === 'concise') {
+                userContent += '\n\nOutput mode: CONCISE — Keep the output to 2-4 sentences. Summarize character appearance briefly, focusing on the most distinctive traits.';
+            } else {
+                userContent += '\n\nOutput mode: DETAILED — Include every character trait listed. Do not abbreviate or omit any physical details. Length is not a constraint.';
+            }
+
+            const chatBody = {
+                model: settings.summarizer_model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userContent },
+                ],
+                max_tokens: 2000,
+                temperature: 0.4,
+            };
+
+            addRuntimeLog('info', 'Studio prompt enhancement started', {
+                model: settings.summarizer_model,
+                inputLength: rawPrompt.length,
+                characterCount: characterLines.length,
+                enhanceFormat: 'nai',
+                enhanceLength: settings.studio_enhance_length || 'detailed',
+            });
+
+            const respJson = await sendChatRequest(settings, chatBody);
+            const rawResponse = respJson.choices?.[0]?.message?.content?.trim();
+            if (!rawResponse) throw new Error('No enhanced prompt returned');
+
+            // Try JSON parse
+            let parsed = null;
+            try {
+                const cleaned = rawResponse.replace(/^\s*```(?:json)?\s*\n?|\n?\s*```\s*$/g, '');
+                parsed = JSON.parse(cleaned);
+            } catch (e) {
+                addRuntimeLog('warn', 'NAI enhance JSON parse failed, using raw text', { error: e.message, preview: rawResponse.substring(0, 200) });
+                toastr.warning('AI returned non-JSON response. Using raw text as prompt.', 'Pawtrait Studio');
+                $('#nig_studio_prompt').val(rawResponse).trigger('input');
+                return;
+            }
+
+            if (parsed.prompt) {
+                $('#nig_studio_prompt').val(parsed.prompt).trigger('input');
+            }
+            if (parsed.negative_prompt && $('#nig_studio_negative_section').is(':visible')) {
+                $('#nig_studio_negative_prompt').val(parsed.negative_prompt).trigger('input');
+            }
+
+            addRuntimeLog('info', 'Studio prompt enhanced (NAI format)', {
+                outputLength: (parsed.prompt || '').length,
+                negativeLength: (parsed.negative_prompt || '').length,
+                notes: parsed.notes || '',
+                preview: (parsed.prompt || '').substring(0, 200),
+            });
+            toastr.success('Prompt enhanced! Check runtime logs for notes.', 'Pawtrait Studio');
+
         } else {
-            userContent += '\n\nOutput format: Use flowing natural language descriptions. Write in detailed prose paragraphs describing the character and scene. Do NOT use comma-separated tags or Danbooru tag format.';
+            // Tags / Natural language path
+            let systemPrompt = settings.studio_enhance_system_prompt || defaultSettings.studio_enhance_system_prompt;
+
+            if (characterLines.length > 0) {
+                systemPrompt = systemPrompt
+                    .replace('{{#if CHARACTERS}}', '')
+                    .replace('{{/if}}', '')
+                    .replace('{{CHARACTERS}}', characterLines.join('\n\n'));
+            } else {
+                systemPrompt = systemPrompt.replace(/\{\{#if CHARACTERS\}\}[\s\S]*?\{\{\/if\}\}/g, '');
+            }
+
+            let userContent = rawPrompt;
+            if (settings.studio_enhance_length === 'concise') {
+                userContent += '\n\nOutput mode: CONCISE — Keep the output to 2-4 sentences. Summarize character appearance briefly, focusing on the most distinctive traits.';
+            } else {
+                userContent += '\n\nOutput mode: DETAILED — Include every character trait listed. Do not abbreviate or omit any physical details. Length is not a constraint.';
+            }
+
+            if (enhanceFormat === 'tags') {
+                userContent += '\n\nOutput format: Use a HYBRID format — start with 1-2 short prose sentences establishing the overall scene and composition, then follow with Danbooru-style tags (comma-separated, lowercase, tag-first structure) for character details, style, and quality tags. Example structure:\n[Short prose scene description]. [Character name], [gender tag], [species/body tags], [hair tags], [eye tags], [clothing tags], [expression tags], [pose tags], [background tags], [style/quality tags]\nDo NOT write long natural language paragraphs. Character traits should be converted to tag format.';
+            } else {
+                userContent += '\n\nOutput format: Use flowing natural language descriptions. Write in detailed prose paragraphs describing the character and scene. Do NOT use comma-separated tags or Danbooru tag format.';
+            }
+
+            const chatBody = {
+                model: settings.summarizer_model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userContent },
+                ],
+                max_tokens: 1500,
+                temperature: 0.4,
+            };
+
+            addRuntimeLog('info', 'Studio prompt enhancement started', {
+                model: settings.summarizer_model,
+                inputLength: rawPrompt.length,
+                characterCount: characterLines.length,
+                enhanceFormat: enhanceFormat,
+                enhanceLength: settings.studio_enhance_length || 'detailed',
+            });
+
+            const respJson = await sendChatRequest(settings, chatBody);
+            const enhanced = respJson.choices?.[0]?.message?.content?.trim();
+
+            if (!enhanced) {
+                throw new Error('No enhanced prompt returned');
+            }
+
+            $('#nig_studio_prompt').val(enhanced).trigger('input');
+            addRuntimeLog('info', 'Studio prompt enhanced', {
+                outputLength: enhanced.length,
+                preview: enhanced.substring(0, 200),
+            });
+            toastr.success('Prompt enhanced!', 'Pawtrait Studio');
         }
-
-        const chatBody = {
-            model: settings.summarizer_model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userContent },
-            ],
-            max_tokens: 1500,
-            temperature: 0.4,
-        };
-
-        addRuntimeLog('info', 'Studio prompt enhancement started', {
-            model: settings.summarizer_model,
-            inputLength: rawPrompt.length,
-            characterCount: characterLines.length,
-            enhanceFormat: enhanceFormat,
-            enhanceLength: settings.studio_enhance_length || 'detailed',
-        });
-
-        const respJson = await sendChatRequest(settings, chatBody);
-        const enhanced = respJson.choices?.[0]?.message?.content?.trim();
-
-        if (!enhanced) {
-            throw new Error('No enhanced prompt returned');
-        }
-
-        $('#nig_studio_prompt').val(enhanced).trigger('input');
-        addRuntimeLog('info', 'Studio prompt enhanced', {
-            outputLength: enhanced.length,
-            preview: enhanced.substring(0, 200),
-        });
-        toastr.success('Prompt enhanced!', 'Pawtrait Studio');
     } catch (error) {
         console.error(`[${extensionName}] Enhance error:`, error);
         addRuntimeLog('error', 'Studio prompt enhancement failed', { error });
@@ -5120,7 +5254,10 @@ async function autoGenerateNegativePrompt() {
             }
         }
 
-        const systemPrompt = settings.studio_negative_prompt_system || defaultSettings.studio_negative_prompt_system;
+        const enhanceFormat = getStudioEnhanceFormat();
+        const systemPrompt = enhanceFormat === 'nai'
+            ? (settings.studio_negative_prompt_system_nai || defaultSettings.studio_negative_prompt_system_nai)
+            : (settings.studio_negative_prompt_system || defaultSettings.studio_negative_prompt_system);
         const userContent = characterLines.length > 0
             ? `Positive prompt: ${positivePrompt}\n\nCharacters in scene:\n${characterLines.join('\n')}`
             : `Positive prompt: ${positivePrompt}`;
@@ -5184,9 +5321,14 @@ async function generateStudioImage() {
     try {
         // Assemble prompt
         const promptParts = [];
+        const hasNaiPipeSyntax = userPrompt.includes('|');
 
-        if (settings.studio_style_prefix) {
+        if (settings.studio_style_prefix && !hasNaiPipeSyntax) {
             promptParts.push(settings.studio_style_prefix);
+        }
+
+        if (hasNaiPipeSyntax) {
+            addRuntimeLog('info', 'Skipping style prefix — NAI pipe syntax detected in prompt');
         }
 
         // Add character descriptions if enabled
@@ -6568,6 +6710,18 @@ jQuery(async () => {
         $('#nig_studio_enhance_system_prompt').val(defaultSettings.studio_enhance_system_prompt);
         saveSettingsDebounced();
         toastr.info('Enhance prompt reset to default.', 'Pawtrait');
+    });
+
+    $('#nig_studio_enhance_system_prompt_nai').on('input', function() {
+        extension_settings[extensionName].studio_enhance_system_prompt_nai = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    $('#nig_studio_reset_nai_enhance_prompt').on('click', function() {
+        extension_settings[extensionName].studio_enhance_system_prompt_nai = defaultSettings.studio_enhance_system_prompt_nai;
+        $('#nig_studio_enhance_system_prompt_nai').val(defaultSettings.studio_enhance_system_prompt_nai);
+        saveSettingsDebounced();
+        toastr.info('NAI enhance prompt reset to default.', 'Pawtrait');
     });
 
     // Advanced settings

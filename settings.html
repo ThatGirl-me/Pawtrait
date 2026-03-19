@@ -249,6 +249,7 @@
 <i class="fa-solid fa-chevron-down nig_collapse_icon"></i>
 </div>
 <div id="nig_studio_enhance_prompt_body" style="display:none;">
+<div id="nig_studio_general_enhance_field">
 <div class="nig_field">
 <textarea id="nig_studio_enhance_system_prompt" class="text_pole" rows="8" placeholder="System prompt for AI enhancement..."></textarea>
 </div>
@@ -258,6 +259,19 @@
 </div>
 </div>
 <small class="nig_hint">Placeholders: <code>{{CHARACTERS}}</code> and <code>{{#if CHARACTERS}}...{{/if}}</code>. Characters block is removed when no characters are selected.</small>
+</div>
+<div id="nig_studio_nai_enhance_field" style="display:none;">
+<div class="nig_field">
+<label for="nig_studio_enhance_system_prompt_nai">NAI Diffusion Enhance Prompt</label>
+<textarea id="nig_studio_enhance_system_prompt_nai" class="text_pole" rows="8"></textarea>
+</div>
+<div class="nig_field" style="display:flex;gap:6px;align-items:center;">
+<div id="nig_studio_reset_nai_enhance_prompt" class="menu_button menu_button_icon nig_small_btn">
+<i class="fa-solid fa-rotate-left"></i> Reset NAI Prompt
+</div>
+</div>
+<small class="nig_hint">Used when an NAI Diffusion model is selected. Expects JSON output with prompt, negative_prompt, and notes fields.</small>
+</div>
 </div>
 </div>
 

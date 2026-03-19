@@ -254,6 +254,11 @@
     color: #8fd8a0;
 }
 
+.nig_format_nai {
+    background: rgba(187, 134, 252, 0.2);
+    color: #c9a0ff;
+}
+
 .nig_button_row {
     display: flex;
     gap: 8px;
