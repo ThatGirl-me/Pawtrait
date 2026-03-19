@@ -121,17 +121,17 @@ Scene: [2-3 descriptive sentences]
     studio_selected_characters: [],
     studio_include_descriptions: true,
     studio_use_avatars: false,
-    studio_enhance_system_prompt: `You are an image prompt generator for AI art.
-The user will give you a brief description of what they want to see. Your job is to expand it into a detailed, high-quality image generation prompt.
+    studio_enhance_system_prompt: `You are an image prompt generator for AI art. The user will give you a brief description of what they want to see. Your job is to expand it into a detailed image generation prompt.
 {{#if CHARACTERS}}
-CHARACTER APPEARANCES (use these exact details):
+CHARACTER APPEARANCES (COPY THESE EXACTLY — do not paraphrase, omit, or simplify details):
 {{CHARACTERS}}
 {{/if}}
 RULES:
 - Output ONLY the final image prompt, no commentary or explanation.
-- Include composition, lighting, mood, and environment details.
-- If character appearances are provided, incorporate them accurately.
-- Keep the output concise but descriptive (2-4 sentences max).
+- CRITICAL: Every physical trait listed in the character appearance MUST appear in the output. Do not drop details to save space. Hair, eyes, mouth, clothing, accessories, body features — include ALL of them.
+- Describe the character's appearance first, then the scene/environment.
+- After the character block, add composition, lighting, mood, and environment details (1-2 sentences).
+- Do not invent or change any character details. If it says "all-black pupil-less eyes," do not write "half-lidded eyes."
 - Do not add characters that weren't mentioned or provided.`,
     studio_steps: 28,
     studio_guidance: 5,
@@ -141,6 +141,7 @@ RULES:
     studio_selected_persona: '',
     studio_include_persona: true,
     studio_negative_prompt_system: `You are a negative prompt generator for AI image generation. Given a positive image prompt, generate a concise negative prompt listing things to AVOID in the image. Focus on common quality issues and things that would conflict with the desired output. RULES: - Output ONLY the negative prompt tags, comma-separated. - Include standard quality negatives (lowres, blurry, bad anatomy, etc.) appropriate for the subject. - Add subject-specific negatives based on what's in the positive prompt. - Keep it concise — no more than 40 tags. - Do NOT include any explanation, commentary, or formatting. Just the comma-separated tags.`,
+    studio_enhance_length: 'detailed',
 };
 
 const MAX_GALLERY_SIZE = 50;
@@ -629,6 +630,7 @@ async function loadSettings() {
     $('#nig_studio_include_persona').prop('checked', s.studio_include_persona !== false);
     populateStudioPersonaDropdown();
     $('#nig_studio_enhance_system_prompt').val(s.studio_enhance_system_prompt || defaultSettings.studio_enhance_system_prompt);
+    $('#nig_studio_enhance_length').val(s.studio_enhance_length || 'detailed');
 
     updateModelInfo();
     renderGallery();
@@ -1124,7 +1126,7 @@ function updateStudioCharactersList() {
 
     const sorted = [...chars].sort((a, b) => a.localeCompare(b));
     for (const name of sorted) {
-        const desc = getEffectiveCharacterDescriptionByName(name);
+        const desc = getEffectiveCharacterDescriptionForStudio(name);
         const shortDesc = desc ? (desc.length > 70 ? `${desc.substring(0, 70)}...` : desc) : 'No visual description found';
         const exists = !!getCharacterByName(name);
         const status = exists ? '' : ' <small class="nig_hint">(missing)</small>';
@@ -1431,6 +1433,18 @@ function getEffectiveCharacterDescriptionByName(charName) {
     return cardDesc ? cleanText(cardDesc).substring(0, 500) : '';
 }
 
+function getEffectiveCharacterDescriptionForStudio(charName) {
+    const settings = extension_settings[extensionName];
+    if (!charName) return '';
+
+    if (settings.char_descriptions && settings.char_descriptions[charName]) {
+        return cleanText(settings.char_descriptions[charName]).substring(0, 100000);
+    }
+
+    const cardDesc = getCharacterCardDescription(charName);
+    return cardDesc ? cleanText(cardDesc).substring(0, 100000) : '';
+}
+
 /**
  * Get the effective character description for the current character
  * Priority: custom description > character card description
@@ -1504,11 +1518,11 @@ function getStudioPersonaDescription(personaKey) {
     if (!personaKey) return '';
     const settings = extension_settings[extensionName];
     if (settings.persona_descriptions?.[personaKey]) {
-        return settings.persona_descriptions[personaKey];
+        return cleanText(settings.persona_descriptions[personaKey]).substring(0, 100000);
     }
     const puDesc = power_user.persona_descriptions?.[personaKey];
     if (puDesc?.description) {
-        return cleanText(puDesc.description).substring(0, 500);
+        return cleanText(puDesc.description).substring(0, 100000);
     }
     return '';
 }
@@ -4963,7 +4977,7 @@ async function enhanceStudioPrompt() {
         const characterLines = [];
         if (Array.isArray(settings.studio_selected_characters)) {
             for (const charName of settings.studio_selected_characters) {
-                const desc = getEffectiveCharacterDescriptionByName(charName);
+                const desc = getEffectiveCharacterDescriptionForStudio(charName);
                 if (desc) characterLines.push(`${charName}: ${desc}`);
             }
         }
@@ -4988,11 +5002,18 @@ async function enhanceStudioPrompt() {
             systemPrompt = systemPrompt.replace(/\{\{#if CHARACTERS\}\}[\s\S]*?\{\{\/if\}\}/g, '');
         }
 
+        let userContent = rawPrompt;
+        if (settings.studio_enhance_length === 'concise') {
+            userContent += '\n\nOutput mode: CONCISE — Keep the output to 2-4 sentences. Summarize character appearance briefly, focusing on the most distinctive traits.';
+        } else {
+            userContent += '\n\nOutput mode: DETAILED — Include every character trait listed. Do not abbreviate or omit any physical details. Length is not a constraint.';
+        }
+
         const chatBody = {
             model: settings.summarizer_model,
             messages: [
                 { role: 'system', content: systemPrompt },
-                { role: 'user', content: rawPrompt },
+                { role: 'user', content: userContent },
             ],
             max_tokens: 1500,
             temperature: 0.4,
@@ -5049,7 +5070,7 @@ async function autoGenerateNegativePrompt() {
         const characterLines = [];
         if (Array.isArray(settings.studio_selected_characters)) {
             for (const charName of settings.studio_selected_characters) {
-                const desc = getEffectiveCharacterDescriptionByName(charName);
+                const desc = getEffectiveCharacterDescriptionForStudio(charName);
                 if (desc) characterLines.push(`${charName}: ${desc}`);
             }
         }
@@ -5127,7 +5148,7 @@ async function generateStudioImage() {
         if (settings.studio_include_descriptions && Array.isArray(settings.studio_selected_characters) && settings.studio_selected_characters.length > 0) {
             const descParts = [];
             for (const charName of settings.studio_selected_characters) {
-                const desc = getEffectiveCharacterDescriptionByName(charName);
+                const desc = getEffectiveCharacterDescriptionForStudio(charName);
                 if (desc) descParts.push(`${charName}: ${desc}`);
             }
             if (descParts.length > 0) {
@@ -6487,6 +6508,11 @@ jQuery(async () => {
 
     $('#nig_studio_enhance_system_prompt').on('input', function() {
         extension_settings[extensionName].studio_enhance_system_prompt = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    $('#nig_studio_enhance_length').on('change', function() {
+        extension_settings[extensionName].studio_enhance_length = $(this).val();
         saveSettingsDebounced();
     });
 

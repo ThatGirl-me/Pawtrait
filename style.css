@@ -229,6 +229,14 @@
     font-size: 0.85em;
 }
 
+.nig_inline_select {
+    width: auto;
+    min-width: 90px;
+    padding: 2px 6px;
+    font-size: 0.85em;
+    height: auto;
+}
+
 .nig_button_row {
     display: flex;
     gap: 8px;
