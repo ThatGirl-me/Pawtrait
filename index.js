@@ -138,6 +138,9 @@ RULES:
     studio_seed: -1,
     studio_sampler: 'euler_ancestral',
     studio_last_seed: null,
+    studio_selected_persona: '',
+    studio_include_persona: true,
+    studio_negative_prompt_system: `You are a negative prompt generator for AI image generation. Given a positive image prompt, generate a concise negative prompt listing things to AVOID in the image. Focus on common quality issues and things that would conflict with the desired output. RULES: - Output ONLY the negative prompt tags, comma-separated. - Include standard quality negatives (lowres, blurry, bad anatomy, etc.) appropriate for the subject. - Add subject-specific negatives based on what's in the positive prompt. - Keep it concise — no more than 40 tags. - Do NOT include any explanation, commentary, or formatting. Just the comma-separated tags.`,
 };
 
 const MAX_GALLERY_SIZE = 50;
@@ -623,6 +626,9 @@ async function loadSettings() {
     }
     populateStudioCharacterDropdown();
     updateStudioCharactersList();
+    $('#nig_studio_include_persona').prop('checked', s.studio_include_persona !== false);
+    populateStudioPersonaDropdown();
+    $('#nig_studio_enhance_system_prompt').val(s.studio_enhance_system_prompt || defaultSettings.studio_enhance_system_prompt);
 
     updateModelInfo();
     renderGallery();
@@ -1135,6 +1141,23 @@ function updateStudioCharactersList() {
     }
 }
 
+function populateStudioPersonaDropdown() {
+    const select = $('#nig_studio_persona_select');
+    const previousValue = select.val();
+    select.empty();
+    select.append('<option value="">-- None --</option>');
+    const personas = power_user.personas || {};
+    const sorted = Object.keys(personas).sort((a, b) =>
+        (personas[a] || a).localeCompare(personas[b] || b));
+    for (const key of sorted) {
+        select.append(`<option value="${key}">${personas[key] || key}</option>`);
+    }
+    const saved = extension_settings[extensionName].studio_selected_persona;
+    if (saved && select.find(`option[value="${saved}"]`).length) {
+        select.val(saved);
+    }
+}
+
 /**
  * Load character description - auto-loads from card, shows custom if saved
  */
@@ -1474,6 +1497,19 @@ function getEffectiveUserDescription() {
     }
 
     console.log(`[${extensionName}] No persona description found`);
+    return '';
+}
+
+function getStudioPersonaDescription(personaKey) {
+    if (!personaKey) return '';
+    const settings = extension_settings[extensionName];
+    if (settings.persona_descriptions?.[personaKey]) {
+        return settings.persona_descriptions[personaKey];
+    }
+    const puDesc = power_user.persona_descriptions?.[personaKey];
+    if (puDesc?.description) {
+        return cleanText(puDesc.description).substring(0, 500);
+    }
     return '';
 }
 
@@ -2868,6 +2904,25 @@ async function getUserAvatar() {
         return { mimeType, data: parts[1] || base64, name: name1 || 'User' };
     } catch (error) {
         console.warn(`[${extensionName}] Error fetching user avatar:`, error);
+        return null;
+    }
+}
+
+async function getStudioPersonaAvatar(personaKey) {
+    if (!personaKey) return null;
+    try {
+        const avatarUrl = getAvatarPath(personaKey);
+        if (!avatarUrl) return null;
+        const response = await fetch(avatarUrl);
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        const base64 = await getBase64Async(blob);
+        const parts = base64.split(',');
+        const mimeType = parts[0]?.match(/data:([^;]+)/)?.[1] || 'image/png';
+        const personaName = (power_user.personas || {})[personaKey] || 'User';
+        return { mimeType, data: parts[1] || base64, name: personaName };
+    } catch (error) {
+        console.warn(`[${extensionName}] Error fetching persona avatar:`, error);
         return null;
     }
 }
@@ -4912,6 +4967,14 @@ async function enhanceStudioPrompt() {
                 if (desc) characterLines.push(`${charName}: ${desc}`);
             }
         }
+        // Include persona description in character context
+        if (settings.studio_include_persona && settings.studio_selected_persona) {
+            const personaDesc = getStudioPersonaDescription(settings.studio_selected_persona);
+            if (personaDesc) {
+                const personaName = (power_user.personas || {})[settings.studio_selected_persona] || 'User';
+                characterLines.push(`${personaName} (Your persona): ${personaDesc}`);
+            }
+        }
 
         // Build system prompt from template
         let systemPrompt = settings.studio_enhance_system_prompt || defaultSettings.studio_enhance_system_prompt;
@@ -4963,6 +5026,74 @@ async function enhanceStudioPrompt() {
     }
 }
 
+async function autoGenerateNegativePrompt() {
+    const settings = extension_settings[extensionName];
+    const positivePrompt = $('#nig_studio_prompt').val().trim();
+    if (!positivePrompt) {
+        toastr.warning('Please enter a positive prompt first.', 'Pawtrait');
+        return;
+    }
+    if (!getCurrentApiKey()) {
+        toastr.error('API Key is required.', 'Pawtrait');
+        return;
+    }
+    if (!settings.summarizer_model) {
+        toastr.error('No summarizer model configured. Set one in the Connection tab.', 'Pawtrait');
+        return;
+    }
+
+    const btn = $('#nig_studio_auto_negative_btn');
+    btn.addClass('nig_btn_disabled').find('i').removeClass('fa-wand-magic-sparkles').addClass('fa-spinner fa-spin');
+
+    try {
+        const characterLines = [];
+        if (Array.isArray(settings.studio_selected_characters)) {
+            for (const charName of settings.studio_selected_characters) {
+                const desc = getEffectiveCharacterDescriptionByName(charName);
+                if (desc) characterLines.push(`${charName}: ${desc}`);
+            }
+        }
+
+        const systemPrompt = settings.studio_negative_prompt_system || defaultSettings.studio_negative_prompt_system;
+        const userContent = characterLines.length > 0
+            ? `Positive prompt: ${positivePrompt}\n\nCharacters in scene:\n${characterLines.join('\n')}`
+            : `Positive prompt: ${positivePrompt}`;
+
+        const chatBody = {
+            model: settings.summarizer_model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userContent },
+            ],
+            max_tokens: 500,
+            temperature: 0.3,
+        };
+
+        addRuntimeLog('info', 'Auto negative prompt started', {
+            model: settings.summarizer_model,
+            promptLength: positivePrompt.length,
+        });
+
+        const respJson = await sendChatRequest(settings, chatBody);
+        const negative = respJson.choices?.[0]?.message?.content?.trim();
+
+        if (!negative) throw new Error('No negative prompt returned');
+
+        $('#nig_studio_negative_prompt').val(negative).trigger('input');
+        addRuntimeLog('info', 'Auto negative prompt generated', {
+            outputLength: negative.length,
+            preview: negative.substring(0, 200),
+        });
+        toastr.success('Negative prompt generated!', 'Pawtrait Studio');
+    } catch (error) {
+        console.error(`[${extensionName}] Auto negative error:`, error);
+        addRuntimeLog('error', 'Auto negative prompt failed', { error });
+        toastr.error(`Failed: ${error.message}`, 'Pawtrait');
+    } finally {
+        btn.removeClass('nig_btn_disabled').find('i').removeClass('fa-spinner fa-spin').addClass('fa-wand-magic-sparkles');
+    }
+}
+
 async function generateStudioImage() {
     const settings = extension_settings[extensionName];
 
@@ -5001,6 +5132,15 @@ async function generateStudioImage() {
             }
             if (descParts.length > 0) {
                 promptParts.push(`Characters:\n${descParts.join('\n')}`);
+            }
+        }
+
+        // Add persona description if enabled
+        if (settings.studio_include_persona && settings.studio_selected_persona) {
+            const personaDesc = getStudioPersonaDescription(settings.studio_selected_persona);
+            if (personaDesc) {
+                const personaName = (power_user.personas || {})[settings.studio_selected_persona] || 'User';
+                promptParts.push(`${personaName} (You): ${personaDesc}`);
             }
         }
 
@@ -5049,7 +5189,7 @@ async function generateStudioImage() {
             requestBody.sampler = settings.studio_sampler;
         }
 
-        // Reference images (character avatars)
+        // Reference images (character avatars + persona avatar)
         const imageDataUrls = [];
         if (settings.studio_use_avatars && Array.isArray(settings.studio_selected_characters)) {
             for (const charName of settings.studio_selected_characters) {
@@ -5057,6 +5197,12 @@ async function generateStudioImage() {
                 if (avatar) {
                     imageDataUrls.push(`data:${avatar.mimeType};base64,${avatar.data}`);
                 }
+            }
+        }
+        if (settings.studio_use_avatars && settings.studio_selected_persona) {
+            const personaAvatar = await getStudioPersonaAvatar(settings.studio_selected_persona);
+            if (personaAvatar) {
+                imageDataUrls.push(`data:${personaAvatar.mimeType};base64,${personaAvatar.data}`);
             }
         }
 
@@ -5781,6 +5927,7 @@ jQuery(async () => {
         }
         if (tab === 'studio') {
             populateStudioCharacterDropdown();
+            populateStudioPersonaDropdown();
             updateStudioControlVisibility();
             updateStudioCharactersList();
         }
@@ -6277,10 +6424,27 @@ jQuery(async () => {
         saveSettingsDebounced();
     });
 
+    $('#nig_studio_persona_select').on('change', function() {
+        extension_settings[extensionName].studio_selected_persona = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    $('#nig_studio_include_persona').on('change', function() {
+        extension_settings[extensionName].studio_include_persona = $(this).prop('checked');
+        saveSettingsDebounced();
+    });
+
+    $('#nig_studio_refresh_persona_btn').on('click', function() {
+        populateStudioPersonaDropdown();
+        toastr.info('Personas refreshed.', 'Pawtrait');
+    });
+
     $('#nig_studio_negative_prompt').on('input', function() {
         extension_settings[extensionName].studio_negative_prompt = $(this).val();
         saveSettingsDebounced();
     });
+
+    $('#nig_studio_auto_negative_btn').on('click', autoGenerateNegativePrompt);
 
     $('#nig_studio_aspect_ratio').on('change', function() {
         const settings = extension_settings[extensionName];
@@ -6311,6 +6475,26 @@ jQuery(async () => {
     $('#nig_studio_max_prompt_length').on('change', function() {
         extension_settings[extensionName].studio_max_prompt_length = Number($(this).val()) || 1000;
         saveSettingsDebounced();
+    });
+
+    // AI Enhance Prompt collapsible
+    $('#nig_studio_enhance_prompt_toggle').on('click', function() {
+        const body = $('#nig_studio_enhance_prompt_body');
+        const icon = $(this).find('.nig_collapse_icon');
+        body.toggle();
+        icon.toggleClass('expanded');
+    });
+
+    $('#nig_studio_enhance_system_prompt').on('input', function() {
+        extension_settings[extensionName].studio_enhance_system_prompt = $(this).val();
+        saveSettingsDebounced();
+    });
+
+    $('#nig_studio_reset_enhance_prompt').on('click', function() {
+        extension_settings[extensionName].studio_enhance_system_prompt = defaultSettings.studio_enhance_system_prompt;
+        $('#nig_studio_enhance_system_prompt').val(defaultSettings.studio_enhance_system_prompt);
+        saveSettingsDebounced();
+        toastr.info('Enhance prompt reset to default.', 'Pawtrait');
     });
 
     // Advanced settings
@@ -6393,6 +6577,7 @@ jQuery(async () => {
         setTimeout(injectAllMessageButtons, 100);
         setTimeout(populateCharacterDropdown, 200);
         setTimeout(populateActiveCharacterDropdown, 250);
+        setTimeout(populateStudioPersonaDropdown, 300);
         updateActiveCharactersList();
         updateSavedCharactersList();
     });
@@ -6406,6 +6591,7 @@ jQuery(async () => {
     eventSource.on(event_types.APP_READY, () => {
         setTimeout(populateCharacterDropdown, 500);
         setTimeout(populateActiveCharacterDropdown, 600);
+        setTimeout(populateStudioPersonaDropdown, 700);
         updateActiveCharactersList();
     });
 

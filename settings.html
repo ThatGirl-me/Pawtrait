@@ -167,6 +167,18 @@
 <span class="nig_checkbox_mark"></span>
 <span class="nig_checkbox_label">Use Avatars as Reference Images<small>Requires compatible model</small></span>
 </label>
+<div class="nig_field" style="margin-top:12px;border-top:1px solid var(--SmartThemeBorderColor);padding-top:12px;">
+<label for="nig_studio_persona_select">Your Persona</label>
+<div class="nig_input_group">
+<select id="nig_studio_persona_select" class="text_pole"><option value="">-- None --</option></select>
+<div id="nig_studio_refresh_persona_btn" class="nig_input_btn" title="Refresh Personas"><i class="fa-solid fa-arrows-rotate"></i></div>
+</div>
+</div>
+<label class="nig_checkbox">
+<input type="checkbox" id="nig_studio_include_persona" />
+<span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Include Persona Description<small>Add your persona's appearance to the prompt</small></span>
+</label>
 </div>
 
 <div class="nig_section">
@@ -191,6 +203,11 @@
 <div class="nig_section_title"><i class="fa-solid fa-ban"></i> Undesired Content</div>
 <div class="nig_field">
 <textarea id="nig_studio_negative_prompt" class="text_pole" rows="3" placeholder="lowres, blurry, bad anatomy, bad hands, missing fingers..."></textarea>
+<div style="margin-top:6px;">
+<div id="nig_studio_auto_negative_btn" class="menu_button menu_button_icon nig_small_btn" title="Auto-generate negative prompt from your positive prompt">
+<i class="fa-solid fa-wand-magic-sparkles"></i> Auto
+</div>
+</div>
 </div>
 </div>
 
@@ -218,6 +235,24 @@
 <div class="nig_field">
 <label for="nig_studio_max_prompt_length">Max Prompt Length</label>
 <input type="number" id="nig_studio_max_prompt_length" class="text_pole" min="100" max="5000" />
+</div>
+</div>
+
+<div class="nig_section">
+<div class="nig_section_title nig_collapsible" id="nig_studio_enhance_prompt_toggle">
+<i class="fa-solid fa-robot"></i> AI Enhance Prompt
+<i class="fa-solid fa-chevron-down nig_collapse_icon"></i>
+</div>
+<div id="nig_studio_enhance_prompt_body" style="display:none;">
+<div class="nig_field">
+<textarea id="nig_studio_enhance_system_prompt" class="text_pole" rows="8" placeholder="System prompt for AI enhancement..."></textarea>
+</div>
+<div class="nig_field" style="display:flex;gap:6px;align-items:center;">
+<div id="nig_studio_reset_enhance_prompt" class="menu_button menu_button_icon nig_small_btn">
+<i class="fa-solid fa-rotate-left"></i> Reset Prompt
+</div>
+</div>
+<small class="nig_hint">Placeholders: <code>{{CHARACTERS}}</code> and <code>{{#if CHARACTERS}}...{{/if}}</code>. Characters block is removed when no characters are selected.</small>
 </div>
 </div>
 
