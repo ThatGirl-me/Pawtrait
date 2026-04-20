@@ -594,6 +594,25 @@ async function loadSettings() {
         }
     }
 
+    // Migrate existing base64 gallery images to files
+    if (Array.isArray(extension_settings[extensionName].gallery)) {
+        let migrated = false;
+        for (const item of extension_settings[extensionName].gallery) {
+            if (item.imageData && !item.imageUrl) {
+                try {
+                    item.imageUrl = await saveBase64AsFile(item.imageData, extensionName, `nig_${Date.now()}_${Math.random().toString(36).substring(7)}`, 'png');
+                    delete item.imageData;
+                    migrated = true;
+                } catch (e) {
+                    console.error(`[${extensionName}] Failed to migrate gallery item to file:`, e);
+                }
+            }
+        }
+        if (migrated) {
+            saveSettingsDebounced();
+        }
+    }
+
     // Ensure api_keys object exists with all providers
     if (!extension_settings[extensionName].api_keys) {
         extension_settings[extensionName].api_keys = { ...defaultSettings.api_keys };
@@ -5006,12 +5025,17 @@ async function sendChatRequest(settings, body) {
 }
 
 
-function addToGallery(imageData, prompt, messageId = null, source = 'message') {
+async function addToGallery(imageData, prompt, messageId = null, source = 'message', filePath = null) {
     const settings = extension_settings[extensionName];
     if (!settings.gallery) settings.gallery = [];
 
+    let imageUrl = filePath;
+    if (!imageUrl && imageData) {
+        imageUrl = await saveBase64AsFile(imageData, extensionName, `nig_${Date.now()}_${Math.random().toString(36).substring(7)}`, 'png');
+    }
+
     settings.gallery.unshift({
-        imageData,
+        imageUrl,
         prompt: prompt.substring(0, 200),
         timestamp: Date.now(),
         messageId,
@@ -5042,9 +5066,10 @@ function renderGallery() {
         const sourceBadge = item.source === 'studio'
             ? '<span class="nig_gallery_badge" title="Studio">&#127912;</span>'
             : '';
+        const imgSrc = item.imageUrl || `data:image/png;base64,${item.imageData}`;
         const galleryItem = $(`
             <div class="nig_gallery_item" data-index="${i}" title="${item.prompt}">
-                <img src="data:image/png;base64,${item.imageData}" />
+                <img src="${imgSrc}" />
                 ${sourceBadge}
                 <div class="nig_gallery_item_overlay">
                     <i class="fa-solid fa-eye nig_gallery_view" data-index="${i}" title="View"></i>
@@ -5101,7 +5126,7 @@ async function generateImage() {
         if (result) {
             $('#nig_preview_image').attr('src', `data:${result.mimeType};base64,${result.imageData}`);
             $('#nig_preview_container').show();
-            addToGallery(result.imageData, lastMsg.text, null);
+            await addToGallery(result.imageData, lastMsg.text, null);
         }
     } catch (error) {
         console.error(`[${extensionName}] Error:`, error);
@@ -5534,7 +5559,7 @@ async function generateStudioImage() {
             const dataUrl = `data:${result.mimeType || 'image/png'};base64,${result.imageData}`;
             $('#nig_studio_output_image').attr('src', dataUrl);
             $('#nig_studio_output_section').show();
-            addToGallery(result.imageData, userPrompt, null, 'studio');
+            await addToGallery(result.imageData, userPrompt, null, 'studio');
 
             // Update last seed display
             const responseSeed = result.seed ?? result.data?.[0]?.seed ?? null;
@@ -5610,7 +5635,7 @@ async function nigMessageButton($icon) {
 
             appendMediaToMessage(message, messageElement, SCROLL_BEHAVIOR.KEEP);
             await saveChatConditional();
-            addToGallery(result.imageData, message.mes, messageId);
+            await addToGallery(result.imageData, message.mes, messageId, 'message', filePath);
         }
     } catch (error) {
         console.error(`[${extensionName}] Error:`, error);
@@ -5640,7 +5665,7 @@ async function slashCommandHandler(args, prompt) {
         if (result) {
             $('#nig_preview_image').attr('src', `data:${result.mimeType};base64,${result.imageData}`);
             $('#nig_preview_container').show();
-            addToGallery(result.imageData, trimmedPrompt, null);
+            await addToGallery(result.imageData, trimmedPrompt, null);
             return `data:${result.mimeType};base64,${result.imageData}`;
         }
     } catch (error) {
@@ -5728,10 +5753,13 @@ function viewGalleryImage(index) {
     console.log(`[${extensionName}] viewGalleryImage: Opening image at index ${index}`);
     console.log(`[${extensionName}] Item timestamp:`, item.timestamp);
     console.log(`[${extensionName}] Item prompt:`, item.prompt?.substring(0, 50));
+    console.log(`[${extensionName}] Item imageUrl:`, item.imageUrl);
     console.log(`[${extensionName}] Item imageData length:`, item.imageData?.length);
 
     // Remove any existing popup first
     $('.nig_popup_overlay').remove();
+
+    const imgSrc = item.imageUrl || `data:image/png;base64,${item.imageData}`;
 
     const popup = $(`
         <div class="nig_popup_overlay">
@@ -5740,7 +5768,7 @@ function viewGalleryImage(index) {
                     <span>${new Date(item.timestamp).toLocaleString()}</span>
                     <i class="fa-solid fa-xmark nig_popup_close"></i>
                 </div>
-                <img src="data:image/png;base64,${item.imageData}" />
+                <img src="${imgSrc}" />
                 <div class="nig_popup_prompt">${item.prompt}</div>
             </div>
         </div>
@@ -5907,7 +5935,7 @@ async function showEditGeneratePopup(messageId) {
                             ${settings.gallery?.length > 0 ? `
                             <label class="nig_avatar_option">
                                 <input type="checkbox" id="nig_include_prev" />
-                                <img src="data:image/png;base64,${settings.gallery[0].imageData}" />
+                                <img src="${settings.gallery[0].imageUrl || `data:image/png;base64,${settings.gallery[0].imageData}`}" />
                                 <span>Previous</span>
                                 </label>
                             ` : ''}
@@ -6037,7 +6065,21 @@ async function showEditGeneratePopup(messageId) {
                 imageDataUrls.push(`data:${userAvatar.mimeType};base64,${userAvatar.data}`);
             }
             if (popup.find('#nig_include_prev').prop('checked') && settings.gallery?.length > 0) {
-                imageDataUrls.push(`data:image/png;base64,${settings.gallery[0].imageData}`);
+                const prevItem = settings.gallery[0];
+                if (prevItem.imageUrl) {
+                    try {
+                        const imgResponse = await fetch(prevItem.imageUrl);
+                        if (imgResponse.ok) {
+                            const blob = await imgResponse.blob();
+                            const base64 = await getBase64Async(blob);
+                            imageDataUrls.push(base64);
+                        }
+                    } catch (e) {
+                        console.error(`[${extensionName}] Failed to load previous image from file for reference:`, e);
+                    }
+                } else if (prevItem.imageData) {
+                    imageDataUrls.push(`data:image/png;base64,${prevItem.imageData}`);
+                }
             }
 
             // Add active character references and descriptions
@@ -6098,7 +6140,7 @@ async function showEditGeneratePopup(messageId) {
 
                 appendMediaToMessage(message, messageElement, SCROLL_BEHAVIOR.KEEP);
                 await saveChatConditional();
-                addToGallery(result.imageData, finalPrompt, messageId);
+                await addToGallery(result.imageData, finalPrompt, messageId, 'message', filePath);
 
                 popup.remove();
                 toastr.success('Image generated!', 'Pawtrait');
