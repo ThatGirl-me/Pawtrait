@@ -10,6 +10,7 @@
 <div class="nig_tab active" data-tab="connection"><i class="fa-solid fa-plug"></i> Connection</div>
 <div class="nig_tab" data-tab="characters"><i class="fa-solid fa-users"></i> Characters</div>
 <div class="nig_tab" data-tab="active"><i class="fa-solid fa-user-check"></i> Active</div>
+<div class="nig_tab" data-tab="studio"><i class="fa-solid fa-palette"></i> Studio</div>
 <div class="nig_tab_break" aria-hidden="true"></div>
 <div class="nig_tab" data-tab="generation"><i class="fa-solid fa-sliders"></i> Generation</div>
 <div class="nig_tab" data-tab="gallery"><i class="fa-solid fa-images"></i> Gallery</div>
@@ -141,6 +142,213 @@
 </div>
 <div id="nig_active_chars_list" class="nig_saved_list"></div>
 </div>
+</div>
+
+<div class="nig_tab_content" data-tab="studio">
+
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-users"></i> Characters</div>
+<small class="nig_hint" style="margin-bottom:10px;display:block;">Added characters are sent to the AI Enhancer as appearance context when you click Enhance. Enable avatar references below to also use their images.</small>
+<div class="nig_field">
+<label for="nig_studio_char_select">Add Character</label>
+<div class="nig_input_group">
+<select id="nig_studio_char_select" class="text_pole"><option value="">-- Add a character --</option></select>
+<div id="nig_studio_add_char_btn" class="nig_input_btn" title="Add Character"><i class="fa-solid fa-plus"></i></div>
+</div>
+</div>
+<div id="nig_studio_chars_list" class="nig_saved_list"></div>
+<small class="nig_hint" id="nig_studio_nai_char_note" style="display:none;">
+<i class="fa-solid fa-circle-info"></i> NAI model active — character details are included via the Enhance step in tag format. Raw description prepend is disabled to prevent format conflicts.
+</small>
+<label class="nig_checkbox" id="nig_studio_include_descriptions_label">
+<input type="checkbox" id="nig_studio_include_descriptions" />
+<span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Include Descriptions in Prompt<small>Prepend character appearance to prompt</small></span>
+</label>
+<label class="nig_checkbox">
+<input type="checkbox" id="nig_studio_use_avatars" />
+<span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Use Avatars as Reference Images<small>Requires compatible model</small></span>
+</label>
+<div class="nig_field" style="margin-top:12px;border-top:1px solid var(--SmartThemeBorderColor);padding-top:12px;">
+<label for="nig_studio_persona_select">Your Persona</label>
+<div class="nig_input_group">
+<select id="nig_studio_persona_select" class="text_pole"><option value="">-- None --</option></select>
+<div id="nig_studio_refresh_persona_btn" class="nig_input_btn" title="Refresh Personas"><i class="fa-solid fa-arrows-rotate"></i></div>
+</div>
+<small class="nig_hint" style="margin-top:6px;display:block;">Your persona's appearance is sent to the AI Enhancer as context when you click Enhance.</small>
+</div>
+<label class="nig_checkbox" id="nig_studio_include_persona_label">
+<input type="checkbox" id="nig_studio_include_persona" />
+<span class="nig_checkbox_mark"></span>
+<span class="nig_checkbox_label">Include Persona Description<small>Prepend persona appearance to prompt</small></span>
+</label>
+</div>
+
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-pen-fancy"></i> Prompt</div>
+<div class="nig_field">
+<textarea id="nig_studio_prompt" class="text_pole" rows="5" placeholder="Describe what you want to generate..."></textarea>
+<div class="nig_edit_prompt_actions">
+<small class="nig_hint">Characters: <span id="nig_studio_char_count">0</span></small>
+<div class="nig_edit_buttons">
+<span id="nig_studio_format_badge" class="nig_format_badge nig_format_tags" title="Model expects tag-based prompts">Tags + Prose</span>
+<select id="nig_studio_enhance_length" class="text_pole nig_inline_select" title="Enhance output mode">
+<option value="detailed">Detailed</option>
+<option value="concise">Concise</option>
+</select>
+<div id="nig_studio_enhance_btn" class="menu_button menu_button_icon nig_small_btn" title="Use AI to enhance your prompt">
+<i class="fa-solid fa-wand-magic-sparkles"></i> Enhance
+</div>
+<div id="nig_studio_clear_prompt_btn" class="menu_button menu_button_icon nig_small_btn" title="Clear prompt">
+<i class="fa-solid fa-eraser"></i>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="nig_section" id="nig_studio_negative_section" style="display:none;">
+<div class="nig_section_title"><i class="fa-solid fa-ban"></i> Undesired Content</div>
+<div class="nig_field">
+<textarea id="nig_studio_negative_prompt" class="text_pole" rows="3" placeholder="lowres, blurry, bad anatomy, bad hands, missing fingers..."></textarea>
+<div style="margin-top:6px;">
+<div id="nig_studio_auto_negative_btn" class="menu_button menu_button_icon nig_small_btn" title="Auto-generate negative prompt from your positive prompt">
+<i class="fa-solid fa-wand-magic-sparkles"></i> Auto
+</div>
+</div>
+</div>
+</div>
+
+<div class="nig_section">
+<div class="nig_section_title"><i class="fa-solid fa-image"></i> Image Settings</div>
+<div class="nig_field">
+<label for="nig_studio_aspect_ratio">Aspect Ratio</label>
+<select id="nig_studio_aspect_ratio" class="text_pole">
+<option value="1:1">1:1 Square</option>
+<option value="16:9">16:9 Landscape</option>
+<option value="9:16">9:16 Portrait</option>
+</select>
+</div>
+<div class="nig_field" id="nig_studio_image_size_field" style="display:none;">
+<label for="nig_studio_image_size">Image Size / Resolution</label>
+<select id="nig_studio_image_size" class="text_pole"></select>
+</div>
+<div class="nig_field">
+<label for="nig_studio_style_prefix">Style Prefix</label>
+<textarea id="nig_studio_style_prefix" class="text_pole textarea_compact" rows="2" placeholder="e.g. Detailed illustration, anime style"></textarea>
+<div id="nig_studio_reset_style" class="menu_button menu_button_icon nig_small_btn" style="margin-top:4px;">
+<i class="fa-solid fa-rotate-left"></i> Reset
+</div>
+</div>
+<div class="nig_field">
+<label id="nig_studio_artist_label" for="nig_studio_artist_input">Artist / Style Tags</label>
+<div class="nig_input_group">
+<input type="text" id="nig_studio_artist_input" class="text_pole" placeholder="e.g. itzah" />
+<div id="nig_studio_add_artist_btn" class="nig_input_btn" title="Add Artist"><i class="fa-solid fa-plus"></i></div>
+</div>
+<small class="nig_hint">Add artist names for style consistency. Formatted automatically based on the selected model.</small>
+<div id="nig_studio_artists_list" class="nig_saved_list"></div>
+</div>
+<div class="nig_field">
+<label for="nig_studio_max_prompt_length">Max Prompt Length</label>
+<input type="number" id="nig_studio_max_prompt_length" class="text_pole" min="100" max="5000" />
+</div>
+</div>
+
+<div class="nig_section">
+<div class="nig_section_title nig_collapsible" id="nig_studio_enhance_prompt_toggle">
+<i class="fa-solid fa-robot"></i> AI Enhance Prompt
+<i class="fa-solid fa-chevron-down nig_collapse_icon"></i>
+</div>
+<div id="nig_studio_enhance_prompt_body" style="display:none;">
+<div id="nig_studio_general_enhance_field">
+<div class="nig_field">
+<textarea id="nig_studio_enhance_system_prompt" class="text_pole" rows="8" placeholder="System prompt for AI enhancement..."></textarea>
+</div>
+<div class="nig_field" style="display:flex;gap:6px;align-items:center;">
+<div id="nig_studio_reset_enhance_prompt" class="menu_button menu_button_icon nig_small_btn">
+<i class="fa-solid fa-rotate-left"></i> Reset Prompt
+</div>
+</div>
+<small class="nig_hint">Placeholders: <code>{{CHARACTERS}}</code> and <code>{{#if CHARACTERS}}...{{/if}}</code>. Characters block is removed when no characters are selected.</small>
+</div>
+<div id="nig_studio_nai_enhance_field" style="display:none;">
+<div class="nig_field">
+<label for="nig_studio_enhance_system_prompt_nai">NAI Diffusion Enhance Prompt</label>
+<textarea id="nig_studio_enhance_system_prompt_nai" class="text_pole" rows="8"></textarea>
+</div>
+<div class="nig_field" style="display:flex;gap:6px;align-items:center;">
+<div id="nig_studio_reset_nai_enhance_prompt" class="menu_button menu_button_icon nig_small_btn">
+<i class="fa-solid fa-rotate-left"></i> Reset NAI Prompt
+</div>
+</div>
+<small class="nig_hint">Used when an NAI Diffusion model is selected. Expects JSON output with prompt, negative_prompt, and notes fields.</small>
+</div>
+</div>
+</div>
+
+<div class="nig_section" id="nig_studio_advanced_section" style="display:none;">
+<div class="nig_section_title nig_collapsible" id="nig_studio_advanced_toggle">
+<i class="fa-solid fa-sliders"></i> Advanced Settings
+<i class="fa-solid fa-chevron-down nig_collapse_icon"></i>
+</div>
+<div id="nig_studio_advanced_body" style="display:none;">
+<div class="nig_field">
+<label for="nig_studio_steps">Steps</label>
+<div class="nig_range_container">
+<input type="range" id="nig_studio_steps" min="1" max="150" value="28" />
+<span id="nig_studio_steps_value" class="nig_range_value">28</span>
+</div>
+</div>
+<div class="nig_field">
+<label for="nig_studio_guidance">Guidance Scale</label>
+<div class="nig_range_container">
+<input type="range" id="nig_studio_guidance" min="1" max="30" step="0.5" value="5" />
+<span id="nig_studio_guidance_value" class="nig_range_value">5</span>
+</div>
+</div>
+<div class="nig_field">
+<label for="nig_studio_seed">Seed</label>
+<div class="nig_input_group">
+<input type="number" id="nig_studio_seed" class="text_pole" value="-1" />
+<div id="nig_studio_random_seed_btn" class="nig_input_btn" title="Random Seed"><i class="fa-solid fa-dice"></i></div>
+</div>
+<div class="nig_studio_seed_info">
+<small class="nig_hint">-1 for random seed</small>
+<span id="nig_studio_last_seed" class="nig_studio_last_seed" title="Click to use this seed" style="display:none;"></span>
+</div>
+</div>
+<div class="nig_field">
+<label for="nig_studio_sampler">Sampler</label>
+<select id="nig_studio_sampler" class="text_pole">
+<option value="euler_ancestral">Euler Ancestral</option>
+<option value="euler">Euler</option>
+<option value="dpm_2">DPM2</option>
+<option value="dpm_2_ancestral">DPM2 Ancestral</option>
+<option value="dpmpp_2s_ancestral">DPM++ 2S Ancestral</option>
+<option value="dpmpp_2m">DPM++ 2M</option>
+<option value="dpmpp_sde">DPM++ SDE</option>
+<option value="ddim">DDIM</option>
+</select>
+</div>
+</div>
+</div>
+
+<div class="nig_section">
+<div id="nig_studio_generate_btn" class="menu_button menu_button_icon nig_full_btn">
+<i class="fa-solid fa-paintbrush"></i>
+<span>Generate</span>
+</div>
+</div>
+
+<div id="nig_studio_output_section" class="nig_section" style="display:none;">
+<div class="nig_section_title"><i class="fa-solid fa-image"></i> Output</div>
+<div class="nig_studio_output">
+<img id="nig_studio_output_image" />
+</div>
+</div>
+
 </div>
 
 <div class="nig_tab_content" data-tab="generation">

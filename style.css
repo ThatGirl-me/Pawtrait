@@ -229,6 +229,58 @@
     font-size: 0.85em;
 }
 
+.nig_inline_select {
+    width: auto;
+    min-width: 90px;
+    padding: 2px 6px;
+    font-size: 0.85em;
+    height: auto;
+}
+
+.nig_format_badge {
+    font-size: 0.75em;
+    padding: 2px 8px;
+    border-radius: 12px;
+    display: inline-block;
+}
+
+.nig_format_tags {
+    background: rgba(52, 152, 219, 0.2);
+    color: #8fd2ff;
+}
+
+.nig_format_natural {
+    background: rgba(92, 184, 92, 0.2);
+    color: #8fd8a0;
+}
+
+.nig_format_nai {
+    background: rgba(187, 134, 252, 0.2);
+    color: #c9a0ff;
+}
+
+.nig_artist_chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    margin: 4px;
+    background: rgba(187, 134, 252, 0.15);
+    border-radius: 16px;
+    font-size: 0.85em;
+}
+
+.nig_artist_chip .nig_remove_artist {
+    cursor: pointer;
+    opacity: 0.7;
+    font-size: 0.8em;
+}
+
+.nig_artist_chip .nig_remove_artist:hover {
+    opacity: 1;
+    color: #ff6b6b;
+}
+
 .nig_button_row {
     display: flex;
     gap: 8px;
@@ -1021,6 +1073,81 @@
     pointer-events: none !important;
     opacity: 0.5 !important;
     cursor: not-allowed !important;
+}
+
+/* Studio Tab Styles */
+.nig_studio_output {
+    border-radius: 8px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.2);
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.nig_studio_output img {
+    width: 100%;
+    display: block;
+}
+.nig_studio_output img[src=""] {
+    display: none;
+}
+.nig_studio_output:not(:has(img[src])):after,
+.nig_studio_output:has(img[src=""]):after {
+    content: 'Your image will appear here';
+    color: var(--SmartThemeQuoteColor);
+    opacity: 0.5;
+    font-size: 0.9em;
+}
+.nig_edit_prompt_actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+}
+.nig_edit_buttons {
+    display: flex;
+    gap: 4px;
+}
+.nig_collapsible {
+    cursor: pointer;
+    user-select: none;
+}
+.nig_collapsible:hover {
+    opacity: 0.8;
+}
+.nig_collapse_icon {
+    margin-left: auto;
+    transition: transform 0.2s;
+}
+.nig_collapse_icon.expanded {
+    transform: rotate(180deg);
+}
+.nig_gallery_badge {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    font-size: 0.7em;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 4px;
+    padding: 2px 4px;
+    pointer-events: none;
+}
+.nig_studio_seed_info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 3px;
+}
+.nig_studio_last_seed {
+    font-size: 0.8em;
+    color: var(--SmartThemeQuoteColor);
+    cursor: pointer;
+    opacity: 0.8;
+}
+.nig_studio_last_seed:hover {
+    opacity: 1;
+    text-decoration: underline;
 }
 
 /* Mobile Responsive Styles */
