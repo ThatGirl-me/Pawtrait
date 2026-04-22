@@ -3,7 +3,7 @@
  * Multi-provider image generation with avatar references and character context
  * Supports NanoGPT, OpenRouter, LinkAPI.ai, Pollinations.ai, and Custom endpoints
  * Author: ThatGirl-me
- * Version 1.0.3
+ * Version 1.0.4
  */
 
 import {
@@ -28,6 +28,7 @@ import { SlashCommand } from '../../../slash-commands/SlashCommand.js';
 import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../slash-commands/SlashCommandArgument.js';
 
 const extensionName = 'pawtrait';
+const GALLERY_FILE_PREFIX = '/user/images/pawtrait/';
 
 // Models that support imageDataUrl/imageDataUrls for reference images
 const MODELS_WITH_IMAGE_INPUT = [
@@ -67,7 +68,6 @@ const defaultSettings = {
     },
 
     // Summarizer Settings
-    use_summarizer: false,
     auto_summarize: false,
     summarizer_model: 'deepseek-chat-cheaper',
     summarizer_system_prompt_template: `You are an image prompt generator for AI art.
@@ -465,15 +465,6 @@ function addRuntimeLog(level, event, details = null) {
     return entry;
 }
 
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
 function formatRuntimeLogDetails(details) {
     if (details == null) return '';
     if (typeof details === 'string') return details;
@@ -591,6 +582,35 @@ async function loadSettings() {
     for (const [key, value] of Object.entries(defaultSettings)) {
         if (extension_settings[extensionName][key] === undefined) {
             extension_settings[extensionName][key] = value;
+        }
+    }
+
+    // Migrate existing base64 gallery images to files
+    if (Array.isArray(extension_settings[extensionName].gallery)) {
+        let migrated = false;
+        for (const item of extension_settings[extensionName].gallery) {
+            if (item?.imageData && !item?.imageUrl) {
+                try {
+                    item.imageUrl = await saveBase64AsFile(
+                        item.imageData,
+                        extensionName,
+                        `nig_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+                        getImageExtensionFromMimeType(item.mimeType, 'png')
+                    );
+                    if (isTrustedGalleryImageUrl(item.imageUrl)) {
+                        delete item.imageData;
+                        migrated = true;
+                    } else {
+                        delete item.imageUrl;
+                        console.warn(`[${extensionName}] Migration produced untrusted gallery path, keeping inline data.`);
+                    }
+                } catch (e) {
+                    console.error(`[${extensionName}] Failed to migrate gallery item to file:`, e);
+                }
+            }
+        }
+        if (migrated) {
+            saveSettingsDebounced();
         }
     }
 
@@ -3211,6 +3231,72 @@ function cleanText(text) {
         .trim();
 }
 
+function escapeHtml(text) {
+    return String(text ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getImageExtensionFromMimeType(mimeType, fallback = 'png') {
+    const normalized = String(mimeType || '').trim().toLowerCase();
+    const mapping = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+    };
+    return mapping[normalized] || fallback;
+}
+
+function isTrustedGalleryImageUrl(imageUrl) {
+    const value = String(imageUrl || '').trim();
+    if (!value) return false;
+    if (/^data:image\//i.test(value)) return true;
+    if (!value.startsWith(GALLERY_FILE_PREFIX)) return false;
+    return !/["'<>\s]/.test(value);
+}
+
+function getGalleryImageSrc(item) {
+    const trustedUrl = isTrustedGalleryImageUrl(item?.imageUrl) ? String(item.imageUrl).trim() : '';
+    if (trustedUrl) return trustedUrl;
+    if (item?.imageData) return `data:image/png;base64,${item.imageData}`;
+    return '';
+}
+
+async function getGalleryReferenceDataUrl(item) {
+    if (!item) return null;
+
+    if (item.imageData) {
+        return `data:image/png;base64,${item.imageData}`;
+    }
+
+    if (!isTrustedGalleryImageUrl(item.imageUrl)) {
+        console.warn(`[${extensionName}] Refused to load untrusted gallery image URL:`, item?.imageUrl);
+        return null;
+    }
+
+    try {
+        const imgResponse = await fetch(item.imageUrl);
+        if (!imgResponse.ok) return null;
+        const blob = await imgResponse.blob();
+        return await getBase64Async(blob);
+    } catch (error) {
+        console.error(`[${extensionName}] Failed to load gallery image reference:`, error);
+        return null;
+    }
+}
+
+function getGalleryLocalFileCount(items) {
+    return (Array.isArray(items) ? items : []).filter(item => {
+        const imageUrl = String(item?.imageUrl || '').trim();
+        return isTrustedGalleryImageUrl(imageUrl) && !/^data:image\//i.test(imageUrl);
+    }).length;
+}
+
 /**
  * Extract visual/scene description from message text
  * Removes dialogue, keeps actions and descriptions
@@ -3713,7 +3799,10 @@ async function generateImageFromPrompt(prompt, sender = null, messageId = null) 
 
     if (settings.use_previous_image && settings.gallery?.length > 0) {
         console.log(`[${extensionName}] Adding previous image as reference`);
-        imageDataUrls.push(`data:image/png;base64,${settings.gallery[0].imageData}`);
+        const previousImageDataUrl = await getGalleryReferenceDataUrl(settings.gallery[0]);
+        if (previousImageDataUrl) {
+            imageDataUrls.push(previousImageDataUrl);
+        }
     }
 
     // Add images to request (NanoGPT format)
@@ -5006,12 +5095,27 @@ async function sendChatRequest(settings, body) {
 }
 
 
-function addToGallery(imageData, prompt, messageId = null, source = 'message') {
+async function addToGallery(imageData, prompt, messageId = null, source = 'message', filePath = null, mimeType = 'image/png') {
     const settings = extension_settings[extensionName];
     if (!settings.gallery) settings.gallery = [];
 
+    let imageUrl = isTrustedGalleryImageUrl(filePath) ? filePath : null;
+    if (!imageUrl && imageData) {
+        imageUrl = await saveBase64AsFile(
+            imageData,
+            extensionName,
+            `nig_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+            getImageExtensionFromMimeType(mimeType, 'png')
+        );
+        if (!isTrustedGalleryImageUrl(imageUrl)) {
+            throw new Error('Gallery image path was not trusted after save');
+        }
+    }
+
     settings.gallery.unshift({
-        imageData,
+        imageUrl,
+        ...(imageUrl ? {} : { imageData }),
+        mimeType,
         prompt: prompt.substring(0, 200),
         timestamp: Date.now(),
         messageId,
@@ -5019,7 +5123,12 @@ function addToGallery(imageData, prompt, messageId = null, source = 'message') {
     });
 
     if (settings.gallery.length > MAX_GALLERY_SIZE) {
+        const removedItems = settings.gallery.slice(MAX_GALLERY_SIZE);
         settings.gallery = settings.gallery.slice(0, MAX_GALLERY_SIZE);
+        const orphanCount = getGalleryLocalFileCount(removedItems);
+        if (orphanCount > 0) {
+            addRuntimeLog('info', 'Gallery trim left local files on disk', { orphanCount });
+        }
     }
 
     saveSettingsDebounced();
@@ -5042,9 +5151,11 @@ function renderGallery() {
         const sourceBadge = item.source === 'studio'
             ? '<span class="nig_gallery_badge" title="Studio">&#127912;</span>'
             : '';
+        const imgSrc = getGalleryImageSrc(item);
+        if (!imgSrc) return;
         const galleryItem = $(`
-            <div class="nig_gallery_item" data-index="${i}" title="${item.prompt}">
-                <img src="data:image/png;base64,${item.imageData}" />
+            <div class="nig_gallery_item" data-index="${i}" title="${escapeHtml(item.prompt)}">
+                <img src="${escapeHtml(imgSrc)}" />
                 ${sourceBadge}
                 <div class="nig_gallery_item_overlay">
                     <i class="fa-solid fa-eye nig_gallery_view" data-index="${i}" title="View"></i>
@@ -5101,7 +5212,12 @@ async function generateImage() {
         if (result) {
             $('#nig_preview_image').attr('src', `data:${result.mimeType};base64,${result.imageData}`);
             $('#nig_preview_container').show();
-            addToGallery(result.imageData, lastMsg.text, null);
+            try {
+                await addToGallery(result.imageData, lastMsg.text, null, 'message', null, result.mimeType);
+            } catch (galleryError) {
+                console.error(`[${extensionName}] Failed to add image to gallery:`, galleryError);
+                toastr.warning('Image generated, but saving to gallery failed.', 'Pawtrait');
+            }
         }
     } catch (error) {
         console.error(`[${extensionName}] Error:`, error);
@@ -5501,18 +5617,27 @@ async function generateStudioImage() {
 
         // Reference images (character avatars + persona avatar)
         const imageDataUrls = [];
-        if (settings.studio_use_avatars && Array.isArray(settings.studio_selected_characters)) {
-            for (const charName of settings.studio_selected_characters) {
-                const avatar = await getCharacterAvatarByName(charName);
-                if (avatar) {
-                    imageDataUrls.push(`data:${avatar.mimeType};base64,${avatar.data}`);
+        if (settings.studio_use_avatars) {
+            if (modelProfile.supportsImageInput) {
+                if (Array.isArray(settings.studio_selected_characters)) {
+                    for (const charName of settings.studio_selected_characters) {
+                        const avatar = await getCharacterAvatarByName(charName);
+                        if (avatar) {
+                            imageDataUrls.push(`data:${avatar.mimeType};base64,${avatar.data}`);
+                        }
+                    }
                 }
-            }
-        }
-        if (settings.studio_use_avatars && settings.studio_selected_persona) {
-            const personaAvatar = await getStudioPersonaAvatar(settings.studio_selected_persona);
-            if (personaAvatar) {
-                imageDataUrls.push(`data:${personaAvatar.mimeType};base64,${personaAvatar.data}`);
+                if (settings.studio_selected_persona) {
+                    const personaAvatar = await getStudioPersonaAvatar(settings.studio_selected_persona);
+                    if (personaAvatar) {
+                        imageDataUrls.push(`data:${personaAvatar.mimeType};base64,${personaAvatar.data}`);
+                    }
+                }
+            } else {
+                addRuntimeLog('warn', 'Studio reference images skipped for unsupported model', {
+                    model: settings.model,
+                });
+                toastr.warning('Selected model does not support reference images. Avatar references were skipped.', 'Pawtrait');
             }
         }
 
@@ -5534,7 +5659,12 @@ async function generateStudioImage() {
             const dataUrl = `data:${result.mimeType || 'image/png'};base64,${result.imageData}`;
             $('#nig_studio_output_image').attr('src', dataUrl);
             $('#nig_studio_output_section').show();
-            addToGallery(result.imageData, userPrompt, null, 'studio');
+            try {
+                await addToGallery(result.imageData, userPrompt, null, 'studio', null, result.mimeType || 'image/png');
+            } catch (galleryError) {
+                console.error(`[${extensionName}] Failed to add studio image to gallery:`, galleryError);
+                toastr.warning('Image generated, but saving to gallery failed.', 'Pawtrait');
+            }
 
             // Update last seed display
             const responseSeed = result.seed ?? result.data?.[0]?.seed ?? null;
@@ -5592,7 +5722,12 @@ async function nigMessageButton($icon) {
         const result = await generateImageFromPrompt(message.mes, sender, messageId);
 
         if (result) {
-            const filePath = await saveBase64AsFile(result.imageData, extensionName, `nig_${Date.now()}`, 'png');
+            const filePath = await saveBase64AsFile(
+                result.imageData,
+                extensionName,
+                `nig_${Date.now()}`,
+                getImageExtensionFromMimeType(result.mimeType, 'png')
+            );
 
             if (!message.extra) message.extra = {};
             if (!Array.isArray(message.extra.media)) message.extra.media = [];
@@ -5610,7 +5745,12 @@ async function nigMessageButton($icon) {
 
             appendMediaToMessage(message, messageElement, SCROLL_BEHAVIOR.KEEP);
             await saveChatConditional();
-            addToGallery(result.imageData, message.mes, messageId);
+            try {
+                await addToGallery(result.imageData, message.mes, messageId, 'message', filePath, result.mimeType || 'image/png');
+            } catch (galleryError) {
+                console.error(`[${extensionName}] Failed to add message image to gallery:`, galleryError);
+                toastr.warning('Image generated, but saving to gallery failed.', 'Pawtrait');
+            }
         }
     } catch (error) {
         console.error(`[${extensionName}] Error:`, error);
@@ -5640,7 +5780,12 @@ async function slashCommandHandler(args, prompt) {
         if (result) {
             $('#nig_preview_image').attr('src', `data:${result.mimeType};base64,${result.imageData}`);
             $('#nig_preview_container').show();
-            addToGallery(result.imageData, trimmedPrompt, null);
+            try {
+                await addToGallery(result.imageData, trimmedPrompt, null, 'message', null, result.mimeType);
+            } catch (galleryError) {
+                console.error(`[${extensionName}] Failed to add slash command image to gallery:`, galleryError);
+                toastr.warning('Image generated, but saving to gallery failed.', 'Pawtrait');
+            }
             return `data:${result.mimeType};base64,${result.imageData}`;
         }
     } catch (error) {
@@ -5701,12 +5846,18 @@ function injectAllMessageButtons() {
     });
 }
 
-function clearGallery() {
+async function clearGallery() {
     if (!confirm('Clear the gallery?')) return;
     addRuntimeLog('info', 'Gallery cleared');
+    const removedItems = [...(extension_settings[extensionName].gallery || [])];
     extension_settings[extensionName].gallery = [];
     saveSettingsDebounced();
     renderGallery();
+    const orphanCount = getGalleryLocalFileCount(removedItems);
+    if (orphanCount > 0) {
+        addRuntimeLog('info', 'Gallery clear left local files on disk', { orphanCount });
+        toastr.info(`${orphanCount} local image file(s) remain on disk. Remove them manually from /user/images/pawtrait/ if desired.`, 'Pawtrait');
+    }
     toastr.info('Gallery cleared.', 'Pawtrait');
 }
 
@@ -5728,10 +5879,17 @@ function viewGalleryImage(index) {
     console.log(`[${extensionName}] viewGalleryImage: Opening image at index ${index}`);
     console.log(`[${extensionName}] Item timestamp:`, item.timestamp);
     console.log(`[${extensionName}] Item prompt:`, item.prompt?.substring(0, 50));
+    console.log(`[${extensionName}] Item imageUrl:`, item.imageUrl);
     console.log(`[${extensionName}] Item imageData length:`, item.imageData?.length);
 
     // Remove any existing popup first
     $('.nig_popup_overlay').remove();
+
+    const imgSrc = getGalleryImageSrc(item);
+    if (!imgSrc) {
+        toastr.warning('Image file is unavailable.', 'Pawtrait');
+        return;
+    }
 
     const popup = $(`
         <div class="nig_popup_overlay">
@@ -5740,8 +5898,8 @@ function viewGalleryImage(index) {
                     <span>${new Date(item.timestamp).toLocaleString()}</span>
                     <i class="fa-solid fa-xmark nig_popup_close"></i>
                 </div>
-                <img src="data:image/png;base64,${item.imageData}" />
-                <div class="nig_popup_prompt">${item.prompt}</div>
+                <img src="${escapeHtml(imgSrc)}" />
+                <div class="nig_popup_prompt">${escapeHtml(item.prompt)}</div>
             </div>
         </div>
     `);
@@ -5792,9 +5950,14 @@ function deleteGalleryImage(index) {
     });
 
     popup.on('click', '.nig_confirm_delete', function() {
-        extension_settings[extensionName].gallery.splice(index, 1);
+        const removedItems = extension_settings[extensionName].gallery.splice(index, 1);
         saveSettingsDebounced();
         renderGallery();
+        const orphanCount = getGalleryLocalFileCount(removedItems);
+        if (orphanCount > 0) {
+            addRuntimeLog('info', 'Gallery delete left local file on disk', { orphanCount });
+            toastr.info('Local gallery file remains on disk. Remove it manually from /user/images/pawtrait/ if desired.', 'Pawtrait');
+        }
         popup.remove();
         toastr.info('Image deleted.', 'Pawtrait');
     });
@@ -5856,9 +6019,9 @@ async function showEditGeneratePopup(messageId) {
     const hasAnyReferenceOption = !!charAvatar || !!userAvatar || activeCharacterRefs.length > 0 || settings.gallery?.length > 0;
     const activeReferenceOptionsHtml = activeCharacterRefs.map(ref => `
         <label class="nig_avatar_option nig_active_avatar_option">
-            <input type="checkbox" class="nig_include_active_char" data-char-name="${ref.name}" />
-            ${ref.avatar ? `<img src="data:${ref.avatar.mimeType};base64,${ref.avatar.data}" />` : '<div class="nig_avatar_placeholder"><i class="fa-solid fa-user"></i></div>'}
-            <span>${ref.name}</span>
+            <input type="checkbox" class="nig_include_active_char" data-char-name="${escapeHtml(ref.name)}" />
+            ${ref.avatar ? `<img src="${escapeHtml(`data:${ref.avatar.mimeType};base64,${ref.avatar.data}`)}" />` : '<div class="nig_avatar_placeholder"><i class="fa-solid fa-user"></i></div>'}
+            <span>${escapeHtml(ref.name)}</span>
         </label>
     `).join('');
 
@@ -5872,7 +6035,7 @@ async function showEditGeneratePopup(messageId) {
                 <div class="nig_edit_body">
                     <div class="nig_edit_section">
                         <label>Prompt</label>
-                        <textarea id="nig_edit_prompt" class="text_pole" rows="8">${initialPrompt}</textarea>
+                        <textarea id="nig_edit_prompt" class="text_pole" rows="8">${escapeHtml(initialPrompt)}</textarea>
                         <div class="nig_edit_prompt_actions">
                             <small class="nig_hint">Characters: <span id="nig_edit_char_count">${initialPrompt.length}</span></small>
                             <div class="nig_edit_buttons">
@@ -5892,22 +6055,22 @@ async function showEditGeneratePopup(messageId) {
                             ${charAvatar ? `
                             <label class="nig_avatar_option">
                                 <input type="checkbox" id="nig_include_char" checked />
-                                <img src="data:${charAvatar.mimeType};base64,${charAvatar.data}" />
-                                <span>${charName}</span>
+                                <img src="${escapeHtml(`data:${charAvatar.mimeType};base64,${charAvatar.data}`)}" />
+                                <span>${escapeHtml(charName)}</span>
                             </label>
                             ` : ''}
                             ${userAvatar ? `
                             <label class="nig_avatar_option">
                                 <input type="checkbox" id="nig_include_user" />
-                                <img src="data:${userAvatar.mimeType};base64,${userAvatar.data}" />
-                                <span>${userName}</span>
+                                <img src="${escapeHtml(`data:${userAvatar.mimeType};base64,${userAvatar.data}`)}" />
+                                <span>${escapeHtml(userName)}</span>
                             </label>
                             ` : ''}
                             ${activeReferenceOptionsHtml}
                             ${settings.gallery?.length > 0 ? `
                             <label class="nig_avatar_option">
                                 <input type="checkbox" id="nig_include_prev" />
-                                <img src="data:image/png;base64,${settings.gallery[0].imageData}" />
+                                <img src="${escapeHtml(getGalleryImageSrc(settings.gallery[0]) || '')}" />
                                 <span>Previous</span>
                                 </label>
                             ` : ''}
@@ -5918,7 +6081,7 @@ async function showEditGeneratePopup(messageId) {
                     </div>
 
                     <div class="nig_edit_section">
-                        <label>Model: <strong>${settings.model}</strong></label>
+                        <label>Model: <strong>${escapeHtml(settings.model)}</strong></label>
                     </div>
                 </div>
                 <div class="nig_edit_footer">
@@ -6037,7 +6200,10 @@ async function showEditGeneratePopup(messageId) {
                 imageDataUrls.push(`data:${userAvatar.mimeType};base64,${userAvatar.data}`);
             }
             if (popup.find('#nig_include_prev').prop('checked') && settings.gallery?.length > 0) {
-                imageDataUrls.push(`data:image/png;base64,${settings.gallery[0].imageData}`);
+                const previousImageDataUrl = await getGalleryReferenceDataUrl(settings.gallery[0]);
+                if (previousImageDataUrl) {
+                    imageDataUrls.push(previousImageDataUrl);
+                }
             }
 
             // Add active character references and descriptions
@@ -6080,7 +6246,12 @@ async function showEditGeneratePopup(messageId) {
             if (result) {
                 // Save to message
                 const messageElement = $(`.mes[mesid="${messageId}"]`);
-                const filePath = await saveBase64AsFile(result.imageData, extensionName, `nig_${Date.now()}`, 'png');
+                const filePath = await saveBase64AsFile(
+                    result.imageData,
+                    extensionName,
+                    `nig_${Date.now()}`,
+                    getImageExtensionFromMimeType(result.mimeType, 'png')
+                );
 
                 if (!message.extra) message.extra = {};
                 if (!Array.isArray(message.extra.media)) message.extra.media = [];
@@ -6098,7 +6269,12 @@ async function showEditGeneratePopup(messageId) {
 
                 appendMediaToMessage(message, messageElement, SCROLL_BEHAVIOR.KEEP);
                 await saveChatConditional();
-                addToGallery(result.imageData, finalPrompt, messageId);
+                try {
+                    await addToGallery(result.imageData, finalPrompt, messageId, 'message', filePath, result.mimeType || 'image/png');
+                } catch (galleryError) {
+                    console.error(`[${extensionName}] Failed to add edit-generate image to gallery:`, galleryError);
+                    toastr.warning('Image generated, but saving to gallery failed.', 'Pawtrait');
+                }
 
                 popup.remove();
                 toastr.success('Image generated!', 'Pawtrait');
@@ -6569,8 +6745,9 @@ jQuery(async () => {
         const settings = extension_settings[extensionName];
         const statusEl = $('#nig_connection_status');
         const btn = $(this);
+        const providerConfig = getProviderConfig(settings);
 
-        if (!getCurrentApiKey()) {
+        if (!getCurrentApiKey() && !providerConfig.noApiKeyRequired) {
             statusEl.removeClass('connected').addClass('error');
             statusEl.find('.nig_status_text').text('No API key');
             return;
@@ -6582,7 +6759,6 @@ jQuery(async () => {
 
         try {
             // Simple test - try provider-specific models endpoint or the configured API endpoint
-            const providerConfig = getProviderConfig(settings);
             const testUrl = providerConfig.modelsTestUrl || providerConfig.modelsUrl || settings.api_endpoint;
 
             if (!testUrl) {
@@ -6592,9 +6768,14 @@ jQuery(async () => {
                 return;
             }
 
+            const headers = {};
+            if (getCurrentApiKey()) {
+                headers['Authorization'] = `Bearer ${getCurrentApiKey()}`;
+            }
+
             const response = await fetch(testUrl, {
                 method: 'GET',
-                headers: { 'Authorization': `Bearer ${getCurrentApiKey()}` },
+                headers,
             });
 
             if (response.ok) {

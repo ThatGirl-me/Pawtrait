@@ -14,7 +14,7 @@
 <img src="https://img.shields.io/github/stars/ThatGirl-me/Pawtrait?style=for-the-badge&label=%E2%AD%90%20stars&color=ff9ecf">
 <img src="https://img.shields.io/github/forks/ThatGirl-me/Pawtrait?style=for-the-badge&label=%F0%9F%8D%B4%20forks&color=ffb7d5">
 <img src="https://img.shields.io/github/last-commit/ThatGirl-me/Pawtrait?style=for-the-badge&label=%F0%9F%93%85%20last%20commit&color=ffa6cc">
-<img src="https://img.shields.io/badge/🦴%20version-v1.0.3-ff9ecf?style=for-the-badge&color=ffa6cc">
+<img src="https://img.shields.io/badge/🦴%20version-v1.0.4-ff9ecf?style=for-the-badge&color=ffa6cc">
 
 
 </p>
@@ -39,27 +39,29 @@ Made with paws. Made with love. 🐾💗
 ---
 ## 🔄 Updates 
 
-### 🆕 What’s New — v1.0.3
+### 🆕 What’s New — v1.0.4
 
-Pawtrait v1.0.3 brings more control, more clarity, and more prompt magic ✨
+Pawtrait v1.0.4 brings safer gallery storage, better reliability, and clearer behavior around saved image files ✨
 
 
 ✨ New & Improved
 
-1. 👤 Include Persona (User) Toggle
-     - Added include_persona option so you can generate images without your user persona when you want pure character-focused visuals.
+1. 🗂️ Safer Gallery Image Storage
+  - Legacy base64 gallery entries are migrated to disk-backed files more safely during load.
 
-2. 🧠 Editable Summarizer System Prompt
-     - The AI summarizer now has a fully editable system prompt template, giving you complete control over how prompts are crafted.
+2. 🛡️ Better Gallery Hardening
+  - Gallery image paths are validated before use.
+  - Prompt text and image URLs are escaped before rendering in the gallery popup/grid.
 
-3. 🎯 Smarter Summarizer Model Selection
-     - Summarizer models are now provider-specific
+3. ✅ More Reliable Generation Flow
+  - Image generation no longer shows a false failure just because gallery persistence fails.
 
-   - Shows top 5 recommended models by default
+4. 🖼️ Better File Type Handling
+  - Saved gallery files now use mime-aware extensions instead of assuming every image is PNG.
 
-   - Includes a toggle to show all available models if you want full power-user access
-
-   - This update makes Pawtrait more flexible for both cozy storytelling and precision prompt crafting 🐾💗
+5. ℹ️ Clearer File Cleanup Expectations
+  - Removing gallery entries does not delete local files automatically.
+  - The UI now makes that behavior explicit.
 
 
 
